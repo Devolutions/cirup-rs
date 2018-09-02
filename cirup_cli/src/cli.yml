@@ -1,0 +1,23 @@
+name: cirup
+author: Marc-André Moreau <marcandre.moreau@gmail.com>
+about: a translation continuous integration tool
+args:
+    - input:
+        long: input
+        value_name: input
+        help: input file
+        takes_value: true
+    - table:
+        long: table
+        value_name: table
+        help: table name
+        takes_value: true
+    - query:
+        long: query
+        value_name: query
+        help: sql query
+        takes_value: true
+    - verbose:
+        short: v
+        multiple: true
+        help: Sets the level of verbosity

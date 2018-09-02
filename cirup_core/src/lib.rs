@@ -1,6 +1,11 @@
 
 extern crate treexml;
 extern crate serde_json;
+extern crate rusqlite;
+extern crate prettytable;
+
+#[macro_use]
+extern crate lazy_static;
 
 use std::fmt;
 
@@ -27,3 +32,5 @@ impl Resource {
 
 pub mod resx;
 pub mod json;
+pub mod file;
+pub mod vtab;

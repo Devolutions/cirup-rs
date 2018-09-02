@@ -3,8 +3,9 @@ extern crate treexml;
 use treexml::Document;
 
 use Resource;
+use file::load_string_from_file;
 
-fn resx_parse_text(text: &str) -> Vec<Resource> {
+pub fn resx_parse_from_str(text: &str) -> Vec<Resource> {
     let doc = Document::parse(text.as_bytes()).unwrap();
     let root = doc.root.unwrap();
 
@@ -20,6 +21,11 @@ fn resx_parse_text(text: &str) -> Vec<Resource> {
     }
 
     resources
+}
+
+pub fn resx_parse_from_file(filename: &str) -> Vec<Resource> {
+    let text = load_string_from_file(filename);
+    resx_parse_from_str(text.as_ref())
 }
 
 #[test]
@@ -39,7 +45,7 @@ fn test_resx_parse() {
     </root>
     "#;
 
-    let resources = resx_parse_text(&text);
+    let resources = resx_parse_from_str(&text);
 
     let resource = resources.get(0).unwrap();
     assert_eq!(resource.name, "lblBoat");

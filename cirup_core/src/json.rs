@@ -1,8 +1,9 @@
 
 extern crate serde_json;
-use serde_json::{Value, Error};
+use serde_json::{Value};
 
 use Resource;
+use file::load_string_from_file;
 
 fn json_join_path(root_path: &str, child_path: &str) -> String {
     if root_path.is_empty() {
@@ -25,12 +26,17 @@ fn json_parse_object(root_path: &str, root_value: &Value, resources: &mut Vec<Re
     }
 }
 
-fn json_parse_text(text: &str) -> Vec<Resource> {
+pub fn json_parse_from_str(text: &str) -> Vec<Resource> {
     let mut resources: Vec<Resource> = Vec::new();
     let root_value: Value = serde_json::from_str(text).unwrap();
     let root_object = root_value.as_object().unwrap();
     json_parse_object("", &root_value, &mut resources);
     resources
+}
+
+pub fn json_parse_from_file(filename: &str) -> Vec<Resource> {
+    let text = load_string_from_file(filename);
+    json_parse_from_str(text.as_ref())
 }
 
 #[test]
@@ -52,7 +58,7 @@ fn test_json_parse() {
     }
     "#;
 
-    let resources = json_parse_text(&text);
+    let resources = json_parse_from_str(&text);
 
     let resource = resources.get(0).unwrap();
     assert_eq!(resource.name, "lblBoat");

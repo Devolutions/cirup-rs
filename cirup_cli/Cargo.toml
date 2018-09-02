@@ -1,0 +1,16 @@
+[package]
+name = "cirup_cli"
+version = "0.1.0"
+authors = ["Marc-André Moreau <marcandre.moreau@gmail.com>"]
+
+[[bin]]
+name = "cirup"
+path = "src/main.rs"
+
+[dependencies]
+lazy_static = "1.0"
+clap = { version = "2.31", features = ["yaml"] }
+
+[dependencies.cirup_core]
+path = "../cirup_core"
+

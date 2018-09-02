@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "cirup_cli",
     "cirup_core"
 ]
 

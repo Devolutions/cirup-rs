@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <data name="lblBoat" xml:space="preserve">
+    <value>I'm on a boat.</value>
+  </data>
+  <data name="lblYolo" xml:space="preserve">
+    <value>You only live once</value>
+  </data>
+  <data name="lblDogs" xml:space="preserve">
+    <value>Who let the dogs out?</value>
+  </data>
+</root>
+
