@@ -3,7 +3,7 @@ extern crate clap;
 extern crate cirup_core;
 
 use clap::App;
-use cirup_core::vtab::query_file;
+use cirup_core::engine::CirupEngine;
 
 fn main() {
     let yaml = load_yaml!("cli.yml");
@@ -12,5 +12,8 @@ fn main() {
     let input = matches.value_of("input").unwrap_or("").to_string();
     let table = matches.value_of("table").unwrap_or("").to_string();
     let query = matches.value_of("query").unwrap_or("").to_string();
-    query_file(input.as_str(), table.as_str(), query.as_str());
+
+    let engine = CirupEngine::new();
+    engine.register_table_from_file("input", input.as_str());
+    engine.query(query.as_str());
 }

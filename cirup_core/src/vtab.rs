@@ -49,13 +49,19 @@ fn get_schema(filename: &str) -> Option<String> {
     create_schema(&names, &types)
 }
 
-fn register_table(db: &Connection, table: &str, filename: &str) {
+pub fn register_table(db: &Connection, table: &str, filename: &str) {
     let mut sql = String::from("CREATE VIRTUAL TABLE ");
     sql.push_str(table);
     sql.push_str(" USING cirup(filename=\"");
     sql.push_str(filename);
     sql.push_str("\")");
     &db.execute_batch(&sql).unwrap();
+}
+
+pub fn create_db()-> Connection {
+    let db = Connection::open_in_memory().unwrap();
+    load_module(&db).unwrap();
+    db
 }
 
 pub fn init_db(table: &str, filename: &str)-> Connection {
@@ -209,74 +215,4 @@ impl VTabCursor for CirupTabCursor {
     fn rowid(&self) -> Result<i64> {
         Ok(self.row_id)
     }
-}
-
-use prettytable::Table;
-use prettytable::row::Row;
-use prettytable::cell::Cell;
-
-pub fn print_pretty(columns: Vec<String>, values: &mut Rows) {
-    let mut row = Row::empty();
-    let mut table: Table = Table::new();
-    //write header first
-    table.set_titles(columns.iter().collect());
-    loop {
-        if let Some(v) = values.next(){
-            if let Some (res) = v.ok() {
-                for i in 0..res.column_count() {
-                    let val = Value::data_type(&res.get(i));
-                    match val {
-                        Type::Real | Type::Integer => {
-                            row.add_cell(Cell::new(&res.get::<usize,i64>(i).to_string()));
-                        },
-                        Type::Text => {
-                            row.add_cell(Cell::new(&res.get::<usize,String>(i)))
-                        },
-                        _ => {
-                            // Do nothing.
-                        }
-                    }
-                }
-                table.add_row(row);
-                row = Row::empty();
-            }
-        } else {
-            break
-        }
-    }
-    println!("{}", table);
-}
-
-pub fn execute_query(db: &Connection, query: &str) {
-    let mut table_result: Vec<Vec<Value>> = Vec::new();
-    let mut row: Vec<Value> = Vec::new();
-    let stmt = db.prepare(&query);
-
-    match stmt {
-        Ok(mut statement_res) => {
-            let mut col_name_internal = Vec::new();
-            for col_name in statement_res.column_names().iter() {
-                col_name_internal.push(col_name.to_string());
-                let v: Value = Value::Text(col_name.to_string());
-                row.push(v);
-            }
-            table_result.push(row);
-
-            let mut response = statement_res.query(&[]).unwrap();
-            print_pretty(col_name_internal, &mut response);
-        },
-        Err(e) => {
-            match e {
-                Error::SqliteFailure(_r, m) => {
-                    if let Some(msg) = m { println!("{}", msg) };
-                },
-                _ => println!("{:?}", Error::ModuleError(format!("{}", e)))
-            }
-        }
-    }
-}
-
-pub fn query_file(input: &str, table: &str, query: &str) {
-    let db = init_db(table, input);
-    execute_query(&db, query);
 }

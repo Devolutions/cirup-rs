@@ -1,4 +1,5 @@
 
+extern crate uuid;
 extern crate treexml;
 extern crate serde_json;
 extern crate rusqlite;
@@ -34,3 +35,4 @@ pub mod resx;
 pub mod json;
 pub mod file;
 pub mod vtab;
+pub mod engine;
