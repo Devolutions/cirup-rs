@@ -1,0 +1,11 @@
+[package]
+name = "cirup_core"
+version = "0.1.0"
+authors = ["Marc-André Moreau <marcandre.moreau@gmail.com>"]
+
+[dependencies]
+treexml = "0.6"
+
+[dependencies.serde_json]
+version = "1.0"
+features = ["preserve_order"]
