@@ -16,5 +16,14 @@ impl fmt::Display for Resource {
     }
 }
 
+impl Resource {
+    pub fn new(name: &str, value: &str) -> Self {
+        Resource {
+            name: name.to_owned(),
+            value: value.to_owned(),
+        }
+    }
+}
+
 pub mod resx;
 pub mod json;

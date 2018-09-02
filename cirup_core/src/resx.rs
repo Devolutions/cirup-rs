@@ -15,10 +15,7 @@ fn resx_parse_text(text: &str) -> Vec<Resource> {
         let data_name = data.attributes.get(&"name".to_owned()).unwrap();
         let value = data.find_child(|tag| tag.name == "value").unwrap().clone();
         let data_value = value.text.unwrap().clone();
-        let resource = Resource {
-            name: data_name.clone(),
-            value: data_value,
-        };
+        let resource = Resource::new(data_name, data_value.as_ref());
         resources.push(resource);
     }
 
@@ -44,12 +41,15 @@ fn test_resx_parse() {
 
     let resources = resx_parse_text(&text);
 
-    assert_eq!(resources.get(0).unwrap().name, "lblBoat");
-    assert_eq!(resources.get(0).unwrap().value, "I'm on a boat.");
+    let resource = resources.get(0).unwrap();
+    assert_eq!(resource.name, "lblBoat");
+    assert_eq!(resource.value, "I'm on a boat.");
 
-    assert_eq!(resources.get(1).unwrap().name, "lblYolo");
-    assert_eq!(resources.get(1).unwrap().value, "You only live once");
+    let resource = resources.get(1).unwrap();
+    assert_eq!(resource.name, "lblYolo");
+    assert_eq!(resource.value, "You only live once");
 
-    assert_eq!(resources.get(2).unwrap().name, "lblDogs");
-    assert_eq!(resources.get(2).unwrap().value, "Who let the dogs out?");
+    let resource = resources.get(2).unwrap();
+    assert_eq!(resource.name, "lblDogs");
+    assert_eq!(resource.value, "Who let the dogs out?");
 }

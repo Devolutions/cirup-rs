@@ -9,3 +9,7 @@ treexml = "0.6"
 [dependencies.serde_json]
 version = "1.0"
 features = ["preserve_order"]
+
+[dependencies.rusqlite]
+version = "0.14.0"
+features = ["vtab", "bundled"]
