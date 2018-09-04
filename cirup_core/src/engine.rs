@@ -4,11 +4,13 @@ use prettytable::row::Row;
 use prettytable::cell::Cell;
 
 use rusqlite::types::*;
-use rusqlite::{Connection, Error};
+use rusqlite::{Connection, Statement, Error};
 use rusqlite::{Rows};
 
 use vtab::{create_db, init_db, register_table};
 use file::{vfile_set};
+
+use Resource;
 
 pub fn print_pretty(columns: Vec<String>, values: &mut Rows) {
     let mut row = Row::empty();
@@ -42,23 +44,47 @@ pub fn print_pretty(columns: Vec<String>, values: &mut Rows) {
     println!("{}", table);
 }
 
+pub fn print_resource_pretty(resources: &Vec<Resource>) {
+    let mut table: Table = Table::new();
+
+    table.add_row(row!["name", "value"]); // table header
+
+    for resource in resources {
+        let mut row = Row::empty();
+        row.add_cell(Cell::new(resource.name.as_str()));
+        row.add_cell(Cell::new(resource.value.as_str()));
+        table.add_row(row);
+    }
+
+    println!("{}", table);
+}
+
+fn get_statement_column_names(statement: &Statement) -> Vec<String> {
+    let mut column_names = Vec::new();
+    for column_name in statement.column_names().iter() {
+        column_names.push(column_name.to_string());
+    }
+    column_names
+}
+
 pub fn execute_query(db: &Connection, query: &str) {
-    let mut table_result: Vec<Vec<Value>> = Vec::new();
-    let mut row: Vec<Value> = Vec::new();
     let stmt = db.prepare(&query);
 
+    let mut table_result: Vec<Vec<Value>> = Vec::new();
+    let mut row: Vec<Value> = Vec::new();
+
     match stmt {
-        Ok(mut statement_res) => {
-            let mut col_name_internal = Vec::new();
-            for col_name in statement_res.column_names().iter() {
-                col_name_internal.push(col_name.to_string());
-                let v: Value = Value::Text(col_name.to_string());
+        Ok(mut statement) => {
+            let mut column_names = get_statement_column_names(&statement);
+
+            for column_name in statement.column_names().iter() {
+                let v: Value = Value::Text(column_name.to_string());
                 row.push(v);
             }
             table_result.push(row);
 
-            let mut response = statement_res.query(&[]).unwrap();
-            print_pretty(col_name_internal, &mut response);
+            let mut response = statement.query(&[]).unwrap();
+            print_pretty(column_names, &mut response);
         },
         Err(e) => {
             match e {
@@ -69,6 +95,27 @@ pub fn execute_query(db: &Connection, query: &str) {
             }
         }
     }
+}
+
+pub fn execute_query_resource(db: &Connection, query: &str) -> Vec<Resource> {
+    let mut resources: Vec<Resource> = Vec::new();
+    let mut statement = db.prepare(&query).unwrap();
+    let mut response = statement.query(&[]).unwrap();
+
+    loop {
+        if let Some(v) = response.next() {
+            if let Some (res) = v.ok() {
+                let name = &res.get::<usize,String>(0);
+                let value = &res.get::<usize,String>(1);
+                let resource = Resource::new(name, value);
+                resources.push(resource);
+            }
+        } else {
+            break
+        }
+    }
+
+    resources
 }
 
 pub fn query_file(input: &str, table: &str, query: &str) {
@@ -96,6 +143,10 @@ impl CirupEngine {
         register_table(&self.db, table, filename);
     }
 
+    pub fn query_resource(&self, query: &str) -> Vec<Resource> {
+        execute_query_resource(&self.db, query)
+    }
+
     pub fn query(&self, query: &str) {
         execute_query(&self.db, query);
     }
@@ -108,8 +159,14 @@ fn test_query() {
     engine.register_table_from_str("test_resx", "test.resx", include_str!("../test/test.resx"));
 
     // find the union of the two tables (merge strings)
-    engine.query("SELECT * FROM test_json UNION SELECT * from test_resx");
+    let resources = engine.query_resource("SELECT * FROM test_json A UNION SELECT * from test_resx B");
+    print_resource_pretty(&resources);
+
+    assert_eq!(resources.len(), 6);
 
     // find the intersection of the two tables (common strings)
-    engine.query("SELECT * FROM test_json INTERSECT SELECT * from test_resx");
+    let resources = engine.query_resource("SELECT * FROM test_json A INTERSECT SELECT * from test_resx B");
+    print_resource_pretty(&resources);
+
+    assert_eq!(resources.len(), 3);
 }
