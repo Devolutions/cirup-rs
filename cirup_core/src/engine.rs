@@ -4,11 +4,11 @@ use prettytable::row::Row;
 use prettytable::cell::Cell;
 
 use rusqlite::types::*;
-use rusqlite::{Connection, Result, Error};
-use rusqlite::{Rows, Row as RusqliteRow};
+use rusqlite::{Connection, Error};
+use rusqlite::{Rows};
 
 use vtab::{create_db, init_db, register_table};
-use file::{vfile_id, vfile_get, vfile_set};
+use file::{vfile_set};
 
 pub fn print_pretty(columns: Vec<String>, values: &mut Rows) {
     let mut row = Row::empty();

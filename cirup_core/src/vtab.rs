@@ -5,7 +5,6 @@ use rusqlite::vtab::{
 
 use rusqlite::types::*;
 use rusqlite::{Connection, Result, Error};
-use rusqlite::{Rows, Row as RusqliteRow};
 
 use std::os::raw::c_int;
 use std::str;
@@ -43,7 +42,7 @@ fn create_schema(column_name: &Vec<&'static str>, column_types: &Vec<&'static st
     schema
 }
 
-fn get_schema(filename: &str) -> Option<String> {
+fn get_schema() -> Option<String> {
     let names = vec!["key", "val"];
     let types = vec!["\" TEXT", "\" TEXT"];
     create_schema(&names, &types)
@@ -137,7 +136,7 @@ impl VTab for CirupTab {
             }
         }
 
-        schema = get_schema(vtab.filename.as_str());
+        schema = get_schema();
         Ok((schema.unwrap().to_owned(), vtab))
     }
 

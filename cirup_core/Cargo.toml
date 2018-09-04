@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Marc-André Moreau <marcandre.moreau@gmail.com>"]
 
 [dependencies]
+regex = "1.0"
 treexml = "0.6"
 lazy_static = "1.0.0"
 prettytable-rs = "^0.6"

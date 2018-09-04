@@ -3,6 +3,7 @@ extern crate serde_json;
 use serde_json::{Value};
 
 use Resource;
+use FileFormat;
 use file::load_string_from_file;
 
 fn json_join_path(root_path: &str, child_path: &str) -> String {
@@ -26,39 +27,49 @@ fn json_parse_object(root_path: &str, root_value: &Value, resources: &mut Vec<Re
     }
 }
 
-pub fn json_parse_from_str(text: &str) -> Vec<Resource> {
-    let mut resources: Vec<Resource> = Vec::new();
-    let root_value: Value = serde_json::from_str(text).unwrap();
-    let root_object = root_value.as_object().unwrap();
-    json_parse_object("", &root_value, &mut resources);
-    resources
+pub struct JsonFileFormat {
+
 }
 
-pub fn json_parse_from_file(filename: &str) -> Vec<Resource> {
-    let text = load_string_from_file(filename);
-    json_parse_from_str(text.as_ref())
+impl FileFormat for JsonFileFormat {
+
+    const EXTENSION: &'static str = "json";
+
+    fn parse_from_str(&self, text: &str) -> Vec<Resource> {
+        let mut resources: Vec<Resource> = Vec::new();
+        let root_value: Value = serde_json::from_str(text).unwrap();
+        json_parse_object("", &root_value, &mut resources);
+        resources
+    }
+
+    fn parse_from_file(&self, filename: &str) -> Vec<Resource> {
+        let text = load_string_from_file(filename);
+        self.parse_from_str(text.as_ref())
+    }
 }
 
 #[test]
 fn test_json_parse() {
     let text = r#"
-    {
-        "lblBoat": "I'm on a boat.",
-        "lblYolo": "You only live once",
-        "lblDogs": "Who let the dogs out?",
-        "language": {
-            "en": "English",
-            "fr": "French"
-        },
-        "very": {
-            "deep": {
-                "object": "value"
-            }
+{
+    "lblBoat": "I'm on a boat.",
+    "lblYolo": "You only live once",
+    "lblDogs": "Who let the dogs out?",
+    "language": {
+        "en": "English",
+        "fr": "French"
+    },
+    "very": {
+        "deep": {
+            "object": "value"
         }
     }
+}
     "#;
 
-    let resources = json_parse_from_str(&text);
+    let file_format = JsonFileFormat { };
+
+    let resources = file_format.parse_from_str(&text);
 
     let resource = resources.get(0).unwrap();
     assert_eq!(resource.name, "lblBoat");

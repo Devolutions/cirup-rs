@@ -8,8 +8,10 @@ use std::sync::Mutex;
 use uuid::Uuid;
 
 use Resource;
-use json::json_parse_from_file;
-use resx::resx_parse_from_file;
+use FileFormat;
+use json::JsonFileFormat;
+use resx::ResxFileFormat;
+use restext::RestextFileFormat;
 
 pub fn load_string_from_file(filename: &str) -> String {
     if let Some(text) = vfile_get(filename) {
@@ -25,11 +27,17 @@ pub fn load_resource_file(filename: &str) -> Vec<Resource> {
     let path = Path::new(filename);
     let extension = path.extension().unwrap().to_str().unwrap();
     match extension {
-        "json" => {
-            json_parse_from_file(filename)
+        JsonFileFormat::EXTENSION => {
+            let file_format = JsonFileFormat { };
+            file_format.parse_from_file(filename)
         },
-        "resx" => {
-            resx_parse_from_file(filename)
+        ResxFileFormat::EXTENSION => {
+            let file_format = ResxFileFormat { };
+            file_format.parse_from_file(filename)
+        },
+        RestextFileFormat::EXTENSION => {
+            let file_format = RestextFileFormat { };
+            file_format.parse_from_file(filename)
         },
         _ => {
             Vec::new()

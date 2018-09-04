@@ -1,5 +1,6 @@
 
 extern crate uuid;
+extern crate regex;
 extern crate treexml;
 extern crate serde_json;
 extern crate rusqlite;
@@ -31,8 +32,16 @@ impl Resource {
     }
 }
 
-pub mod resx;
+pub trait FileFormat {
+    const EXTENSION: &'static str;
+    fn parse_from_str(&self, text: &str) -> Vec<Resource>;
+    fn parse_from_file(&self, filename: &str) -> Vec<Resource>;
+}
+
 pub mod json;
+pub mod resx;
+pub mod restext;
+
 pub mod file;
 pub mod vtab;
 pub mod engine;
