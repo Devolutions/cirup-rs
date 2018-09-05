@@ -9,11 +9,46 @@ fn main() {
     let yaml = load_yaml!("cli.yml");
     let app = App::from_yaml(yaml);
     let matches = app.version(crate_version!()).get_matches();
-    let input = matches.value_of("input").unwrap_or("").to_string();
-    let table = matches.value_of("table").unwrap_or("").to_string();
-    let query = matches.value_of("query").unwrap_or("").to_string();
 
     let engine = CirupEngine::new();
-    engine.register_table_from_file("input", input.as_str());
-    engine.query(query.as_str());
+
+    if let Some(files) = matches.values_of("diff") {
+        let files: Vec<&str> = files.collect();
+        let file_a = files[0];
+        let file_b = files[1];
+        engine.register_table_from_file("A", file_a);
+        engine.register_table_from_file("B", file_b);
+        let query = "SELECT * FROM A UNION SELECT * from B"; // FIXME: not the good query
+        println!("diff {} {}", file_a, file_b);
+        engine.query(query);
+    }
+    if let Some(files) = matches.values_of("merge") {
+        let files: Vec<&str> = files.collect();
+        let file_a = files[0];
+        let file_b = files[1];
+        engine.register_table_from_file("A", file_a);
+        engine.register_table_from_file("B", file_b);
+        let query = "SELECT * FROM A UNION SELECT * from B";
+        println!("merge {} {}", file_a, file_b);
+        engine.query(query);
+    }
+    if let Some(files) = matches.values_of("intersect") {
+        let files: Vec<&str> = files.collect();
+        let file_a = files[0];
+        let file_b = files[1];
+        engine.register_table_from_file("A", file_a);
+        engine.register_table_from_file("B", file_b);
+        let query = "SELECT * FROM A INTERSECT SELECT * from B";
+        println!("intersect {} {}", file_a, file_b);
+        engine.query(query);
+    }
+    if let Some(files) = matches.values_of("convert") {
+        let files: Vec<&str> = files.collect();
+        let file_a = files[0];
+        let file_b = files[1];
+        engine.register_table_from_file("A", file_a);
+        engine.register_table_from_file("B", file_b);
+        println!("convert {} {}", file_a, file_b);
+        //engine.query(query.as_str());
+    }
 }

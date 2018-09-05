@@ -2,21 +2,30 @@ name: cirup
 author: Marc-André Moreau <marcandre.moreau@gmail.com>
 about: a translation continuous integration tool
 args:
-    - input:
-        long: input
-        value_name: input
-        help: input file
-        takes_value: true
-    - table:
-        long: table
-        value_name: table
-        help: table name
-        takes_value: true
-    - query:
-        long: query
-        value_name: query
-        help: sql query
-        takes_value: true
+    - diff:
+        long: diff
+        multiple: true
+        min_values: 2
+        max_values: 3
+        help: input1 input2 [output]
+    - merge:
+        long: merge
+        multiple: true
+        min_values: 2
+        max_values: 3
+        help: input1 input2 [output]
+    - intersect:
+        long: intersect
+        multiple: true
+        min_values: 2
+        max_values: 3
+        help: input1 input2 [output]
+    - convert:
+        long: convert
+        multiple: true
+        min_values: 2
+        max_values: 2
+        help: input output
     - verbose:
         short: v
         multiple: true

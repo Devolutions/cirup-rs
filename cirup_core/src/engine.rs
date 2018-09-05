@@ -155,17 +155,17 @@ impl CirupEngine {
 #[test]
 fn test_query() {
     let engine = CirupEngine::new();
-    engine.register_table_from_str("test_json", "test.json", include_str!("../test/test.json"));
-    engine.register_table_from_str("test_resx", "test.resx", include_str!("../test/test.resx"));
+    engine.register_table_from_str("A", "test.json", include_str!("../test/test.json"));
+    engine.register_table_from_str("B", "test.resx", include_str!("../test/test.resx"));
 
     // find the union of the two tables (merge strings)
-    let resources = engine.query_resource("SELECT * FROM test_json A UNION SELECT * from test_resx B");
+    let resources = engine.query_resource("SELECT * FROM A UNION SELECT * from B");
     print_resource_pretty(&resources);
 
     assert_eq!(resources.len(), 6);
 
     // find the intersection of the two tables (common strings)
-    let resources = engine.query_resource("SELECT * FROM test_json A INTERSECT SELECT * from test_resx B");
+    let resources = engine.query_resource("SELECT * FROM A INTERSECT SELECT * from B");
     print_resource_pretty(&resources);
 
     assert_eq!(resources.len(), 3);
