@@ -38,6 +38,8 @@ pub trait FileFormat {
     const EXTENSION: &'static str;
     fn parse_from_str(&self, text: &str) -> Vec<Resource>;
     fn parse_from_file(&self, filename: &str) -> Vec<Resource>;
+    fn write_to_str(&self, resources: Vec<Resource>) -> String;
+    fn write_to_file(&self, filename: &str, resources: Vec<Resource>);
 }
 
 pub mod json;

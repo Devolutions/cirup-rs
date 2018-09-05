@@ -2,6 +2,7 @@
 use std::fs;
 use std::io::Read;
 use std::path::Path;
+use std::io::prelude::*;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -23,6 +24,11 @@ pub fn load_string_from_file(filename: &str) -> String {
     text
 }
 
+pub fn save_string_to_file(filename: &str, text: &str) {
+    let mut file = fs::File::create(filename).unwrap();
+    file.write_all(text.as_bytes()).unwrap();
+}
+
 pub fn load_resource_file(filename: &str) -> Vec<Resource> {
     let path = Path::new(filename);
     let extension = path.extension().unwrap().to_str().unwrap();
@@ -41,6 +47,28 @@ pub fn load_resource_file(filename: &str) -> Vec<Resource> {
         },
         _ => {
             Vec::new()
+        }
+    }
+}
+
+pub fn save_resource_file(filename: &str, resources: Vec<Resource>) {
+    let path = Path::new(filename);
+    let extension = path.extension().unwrap().to_str().unwrap();
+    match extension {
+        JsonFileFormat::EXTENSION => {
+            let file_format = JsonFileFormat { };
+            file_format.write_to_file(filename, resources)
+        },
+        ResxFileFormat::EXTENSION => {
+            let file_format = ResxFileFormat { };
+            file_format.write_to_file(filename, resources)
+        },
+        RestextFileFormat::EXTENSION => {
+            let file_format = RestextFileFormat { };
+            file_format.write_to_file(filename, resources)
+        },
+        _ => {
+
         }
     }
 }

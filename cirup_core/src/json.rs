@@ -4,7 +4,7 @@ use serde_json::{Value};
 
 use Resource;
 use FileFormat;
-use file::load_string_from_file;
+use file::{load_string_from_file, save_string_to_file};
 
 fn json_join_path(root_path: &str, child_path: &str) -> String {
     if root_path.is_empty() {
@@ -45,6 +45,15 @@ impl FileFormat for JsonFileFormat {
     fn parse_from_file(&self, filename: &str) -> Vec<Resource> {
         let text = load_string_from_file(filename);
         self.parse_from_str(text.as_ref())
+    }
+
+    fn write_to_str(&self, resources: Vec<Resource>) -> String {
+        String::new()
+    }
+
+    fn write_to_file(&self, filename: &str, resources: Vec<Resource>) {
+        let text = self.write_to_str(resources);
+        save_string_to_file(filename, text.as_str());
     }
 }
 

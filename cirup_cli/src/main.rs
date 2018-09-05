@@ -4,6 +4,7 @@ extern crate cirup_core;
 
 use clap::App;
 use cirup_core::engine::CirupEngine;
+use cirup_core::file::save_resource_file;
 
 fn main() {
     let yaml = load_yaml!("cli.yml");
@@ -19,7 +20,6 @@ fn main() {
         engine.register_table_from_file("A", file_a);
         engine.register_table_from_file("B", file_b);
         let query = "SELECT * FROM A UNION SELECT * from B"; // FIXME: not the good query
-        println!("diff {} {}", file_a, file_b);
         engine.query(query);
     }
     if let Some(files) = matches.values_of("merge") {
@@ -29,7 +29,6 @@ fn main() {
         engine.register_table_from_file("A", file_a);
         engine.register_table_from_file("B", file_b);
         let query = "SELECT * FROM A UNION SELECT * from B";
-        println!("merge {} {}", file_a, file_b);
         engine.query(query);
     }
     if let Some(files) = matches.values_of("intersect") {
@@ -39,15 +38,16 @@ fn main() {
         engine.register_table_from_file("A", file_a);
         engine.register_table_from_file("B", file_b);
         let query = "SELECT * FROM A INTERSECT SELECT * from B";
-        println!("intersect {} {}", file_a, file_b);
         engine.query(query);
     }
     if let Some(files) = matches.values_of("convert") {
         let files: Vec<&str> = files.collect();
-        let file_a = files[0];
-        let file_b = files[1];
-        engine.register_table_from_file("A", file_a);
-        println!("convert {} {}", file_a, file_b);
+        let input = files[0];
+        let output = files[1];
+        engine.register_table_from_file("A", input);
+        let query = "SELECT * FROM A";
+        let resources = engine.query_resource(query);
+        save_resource_file(output, resources);
     }
     if let Some(files) = matches.values_of("print") {
         let files: Vec<&str> = files.collect();
