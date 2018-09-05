@@ -29,6 +29,26 @@ pub fn save_string_to_file(filename: &str, text: &str) {
     file.write_all(text.as_bytes()).unwrap();
 }
 
+pub fn load_resource_str(text: &str, extension: &str) -> Vec<Resource> {
+    match extension {
+        JsonFileFormat::EXTENSION => {
+            let file_format = JsonFileFormat { };
+            file_format.parse_from_str(text)
+        },
+        ResxFileFormat::EXTENSION => {
+            let file_format = ResxFileFormat { };
+            file_format.parse_from_str(text)
+        },
+        RestextFileFormat::EXTENSION => {
+            let file_format = RestextFileFormat { };
+            file_format.parse_from_str(text)
+        },
+        _ => {
+            Vec::new()
+        }
+    }
+}
+
 pub fn load_resource_file(filename: &str) -> Vec<Resource> {
     let path = Path::new(filename);
     let extension = path.extension().unwrap().to_str().unwrap();

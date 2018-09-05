@@ -6,6 +6,14 @@ use clap::App;
 use cirup_core::engine::CirupEngine;
 use cirup_core::file::save_resource_file;
 
+fn get_file_args(files: Vec<&str>) -> (&str, &str, Option<&str>) {
+    if files.len() > 2 {
+        (files[0], files[1], Some(files[2]))
+    } else {
+        (files[0], files[1], None)
+    }
+}
+
 fn main() {
     let yaml = load_yaml!("cli.yml");
     let app = App::from_yaml(yaml);
@@ -13,32 +21,30 @@ fn main() {
 
     let engine = CirupEngine::new();
 
-    if let Some(files) = matches.values_of("diff") {
-        let files: Vec<&str> = files.collect();
-        let file_a = files[0];
-        let file_b = files[1];
+    if let Some(files) = matches.values_of("different") {
+        let (file_a, file_b, file_c) = get_file_args(files.collect());
         engine.register_table_from_file("A", file_a);
         engine.register_table_from_file("B", file_b);
-        let query = "SELECT * FROM A UNION SELECT * from B"; // FIXME: not the good query
+        let query = "SELECT A.key, A.val, B.val FROM A LEFT OUTER JOIN B ON A.key=B.key WHERE A.val <> B.val";
         engine.query(query);
     }
     if let Some(files) = matches.values_of("merge") {
-        let files: Vec<&str> = files.collect();
-        let file_a = files[0];
-        let file_b = files[1];
+        let (file_a, file_b, file_c) = get_file_args(files.collect());
         engine.register_table_from_file("A", file_a);
         engine.register_table_from_file("B", file_b);
         let query = "SELECT * FROM A UNION SELECT * from B";
         engine.query(query);
     }
     if let Some(files) = matches.values_of("intersect") {
-        let files: Vec<&str> = files.collect();
-        let file_a = files[0];
-        let file_b = files[1];
+        let (file_a, file_b, file_c) = get_file_args(files.collect());
         engine.register_table_from_file("A", file_a);
         engine.register_table_from_file("B", file_b);
         let query = "SELECT * FROM A INTERSECT SELECT * from B";
         engine.query(query);
+    }
+    if let Some(files) = matches.values_of("subtract") {
+        let (file_a, file_b, file_c) = get_file_args(files.collect());
+        engine.subtract_command(file_a, file_b, file_c);
     }
     if let Some(files) = matches.values_of("convert") {
         let files: Vec<&str> = files.collect();

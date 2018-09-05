@@ -8,7 +8,7 @@ use rusqlite::{Connection, Statement, Error};
 use rusqlite::{Rows};
 
 use vtab::{create_db, init_db, register_table};
-use file::{vfile_set};
+use file::{vfile_set, save_resource_file, load_resource_str};
 
 use Resource;
 
@@ -147,8 +147,25 @@ impl CirupEngine {
         execute_query_resource(&self.db, query)
     }
 
+    pub fn query_subtract(&self) -> Vec<Resource> {
+        let query = "SELECT * FROM A WHERE A.key NOT IN (SELECT B.key FROM B)";
+        execute_query_resource(&self.db, query)
+    }
+
     pub fn query(&self, query: &str) {
         execute_query(&self.db, query);
+    }
+
+    pub fn subtract_command(&self, file_a: &str, file_b: &str, file_c: Option<&str>) {
+        self.register_table_from_file("A", file_a);
+        self.register_table_from_file("B", file_b);
+        let resources = self.query_subtract();
+
+        if file_c.is_some() {
+            save_resource_file(file_c.unwrap(), resources);
+        } else {
+            print_resources_pretty(&resources);
+        }
     }
 }
 
@@ -169,4 +186,16 @@ fn test_query() {
     print_resources_pretty(&resources);
 
     assert_eq!(resources.len(), 3);
+}
+
+#[test]
+fn test_query_subtract() {
+    let engine = CirupEngine::new();
+
+    engine.register_table_from_str("A", "test1A.restext", include_str!("../test/subtract/test1A.restext"));
+    engine.register_table_from_str("B", "test1B.restext", include_str!("../test/subtract/test1B.restext"));
+    let expected = load_resource_str(include_str!("../test/subtract/test1C.restext"), "restext");
+
+    let actual = engine.query_subtract();
+    assert_eq!(actual, expected);
 }

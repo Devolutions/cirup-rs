@@ -2,33 +2,33 @@ name: cirup
 author: Marc-André Moreau <marcandre.moreau@gmail.com>
 about: a translation continuous integration tool
 args:
-    - diff:
-        long: diff
-        multiple: true
+    - different:
+        long: different
         min_values: 2
         max_values: 3
         help: input1 input2 [output]
     - merge:
         long: merge
-        multiple: true
         min_values: 2
         max_values: 3
         help: input1 input2 [output]
     - intersect:
         long: intersect
-        multiple: true
+        min_values: 2
+        max_values: 3
+        help: input1 input2 [output]
+    - subtract:
+        long: subtract
         min_values: 2
         max_values: 3
         help: input1 input2 [output]
     - convert:
         long: convert
-        multiple: true
         min_values: 2
         max_values: 2
         help: input output
     - print:
         long: print
-        multiple: true
         min_values: 1
         max_values: 1
         help: input
