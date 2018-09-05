@@ -44,7 +44,7 @@ pub fn print_pretty(columns: Vec<String>, values: &mut Rows) {
     println!("{}", table);
 }
 
-pub fn print_resource_pretty(resources: &Vec<Resource>) {
+pub fn print_resources_pretty(resources: &Vec<Resource>) {
     let mut table: Table = Table::new();
 
     table.add_row(row!["name", "value"]); // table header
@@ -160,13 +160,13 @@ fn test_query() {
 
     // find the union of the two tables (merge strings)
     let resources = engine.query_resource("SELECT * FROM A UNION SELECT * from B");
-    print_resource_pretty(&resources);
+    print_resources_pretty(&resources);
 
     assert_eq!(resources.len(), 6);
 
     // find the intersection of the two tables (common strings)
     let resources = engine.query_resource("SELECT * FROM A INTERSECT SELECT * from B");
-    print_resource_pretty(&resources);
+    print_resources_pretty(&resources);
 
     assert_eq!(resources.len(), 3);
 }

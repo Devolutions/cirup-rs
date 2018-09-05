@@ -47,8 +47,13 @@ fn main() {
         let file_a = files[0];
         let file_b = files[1];
         engine.register_table_from_file("A", file_a);
-        engine.register_table_from_file("B", file_b);
         println!("convert {} {}", file_a, file_b);
-        //engine.query(query.as_str());
+    }
+    if let Some(files) = matches.values_of("print") {
+        let files: Vec<&str> = files.collect();
+        let file_a = files[0];
+        engine.register_table_from_file("A", file_a);
+        let query = "SELECT * FROM A";
+        engine.query(query);
     }
 }
