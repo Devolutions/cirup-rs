@@ -3,13 +3,21 @@ use regex::Regex;
 use std::fmt;
 
 use Resource;
-use FileFormat;
+use file::{FileFormat, FormatType};
 use file::{load_string_from_file, save_string_to_file};
 
 /**
  * .restext file format:
  * https://docs.microsoft.com/en-us/dotnet/framework/tools/resgen-exe-resource-file-generator
  * https://docs.microsoft.com/en-us/dotnet/framework/resources/creating-resource-files-for-desktop-apps
+ */
+
+/**
+ * TODO:
+ * - escape '\' as "\\"
+ * - replace newline with \r\n
+ * - read/write UTF-8 BOM
+ * - use \r\n line ending
  */
 
 lazy_static! {
@@ -23,6 +31,7 @@ pub struct RestextFileFormat {
 impl FileFormat for RestextFileFormat {
 
     const EXTENSION: &'static str = "restext";
+    const TYPE: FormatType = FormatType::Restext;
 
     fn parse_from_str(&self, text: &str) -> Vec<Resource> {
         let mut resources: Vec<Resource> = Vec::new();

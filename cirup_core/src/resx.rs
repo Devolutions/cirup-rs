@@ -3,7 +3,7 @@ extern crate treexml;
 use treexml::{Document, Element};
 
 use Resource;
-use FileFormat;
+use file::{FileFormat, FormatType};
 use file::{load_string_from_file, save_string_to_file};
 
 pub struct ResxFileFormat {
@@ -13,6 +13,7 @@ pub struct ResxFileFormat {
 impl FileFormat for ResxFileFormat {
 
     const EXTENSION: &'static str = "resx";
+    const TYPE: FormatType = FormatType::Resx;
 
     fn parse_from_str(&self, text: &str) -> Vec<Resource> {
         let doc = Document::parse(text.as_bytes()).unwrap();

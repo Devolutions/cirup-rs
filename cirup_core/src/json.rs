@@ -3,7 +3,7 @@ extern crate serde_json;
 use serde_json::{Value};
 
 use Resource;
-use FileFormat;
+use file::{FileFormat, FormatType};
 use file::{load_string_from_file, save_string_to_file};
 
 fn json_join_path(root_path: &str, child_path: &str) -> String {
@@ -34,6 +34,7 @@ pub struct JsonFileFormat {
 impl FileFormat for JsonFileFormat {
 
     const EXTENSION: &'static str = "json";
+    const TYPE: FormatType = FormatType::Json;
 
     fn parse_from_str(&self, text: &str) -> Vec<Resource> {
         let mut resources: Vec<Resource> = Vec::new();

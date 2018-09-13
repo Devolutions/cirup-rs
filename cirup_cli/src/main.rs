@@ -3,7 +3,7 @@ extern crate clap;
 extern crate cirup_core;
 
 use clap::App;
-use cirup_core::engine::CirupEngine;
+use cirup_core::query::CirupEngine;
 use cirup_core::file::save_resource_file;
 
 fn get_file_args(files: Vec<&str>) -> (&str, &str, Option<&str>) {

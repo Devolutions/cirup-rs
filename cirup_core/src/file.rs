@@ -9,10 +9,42 @@ use std::sync::Mutex;
 use uuid::Uuid;
 
 use Resource;
-use FileFormat;
 use json::JsonFileFormat;
 use resx::ResxFileFormat;
 use restext::RestextFileFormat;
+
+pub enum FormatType {
+    Unknown,
+    Json,
+    Resx,
+    Restext,
+}
+
+pub trait FileFormat {
+    const EXTENSION: &'static str;
+    const TYPE: FormatType;
+    fn parse_from_str(&self, text: &str) -> Vec<Resource>;
+    fn parse_from_file(&self, filename: &str) -> Vec<Resource>;
+    fn write_to_str(&self, resources: Vec<Resource>) -> String;
+    fn write_to_file(&self, filename: &str, resources: Vec<Resource>);
+}
+
+pub fn get_format_type_from_extension(extension: &str) -> FormatType {
+    match extension {
+        JsonFileFormat::EXTENSION => {
+            FormatType::Json
+        },
+        ResxFileFormat::EXTENSION => {
+            FormatType::Resx
+        },
+        RestextFileFormat::EXTENSION => {
+            FormatType::Restext
+        },
+        _ => {
+            FormatType::Unknown
+        }
+    }
+}
 
 pub fn load_string_from_file(filename: &str) -> String {
     if let Some(text) = vfile_get(filename) {
