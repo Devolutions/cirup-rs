@@ -53,6 +53,7 @@ impl FileFormat for ResxFileFormat {
 
         let doc = Document {
             root: Some(root),
+            encoding: "utf-8".to_string(),
             ..Document::default()
         };
 
@@ -123,10 +124,8 @@ fn test_resx_write() {
   </data>
 </root>"#;
 
-    // FIXME: control XML attribute ordering
-
     let actual_text = file_format.write_to_str(resources);
-    println!("{}", actual_text);
-    println!("{}", expected_text);
-    //assert_eq!(actual_text, expected_text);
+    //println!("{}", actual_text);
+    //println!("{}", expected_text);
+    assert_eq!(actual_text, expected_text);
 }

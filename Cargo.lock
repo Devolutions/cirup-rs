@@ -83,7 +83,7 @@ dependencies = [
  "regex 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "rusqlite 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.26 (registry+https://github.com/rust-lang/crates.io-index)",
- "treexml 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "treexml 0.7.0 (git+https://github.com/awakecoding/treexml-rs.git?branch=indexmap)",
  "uuid 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "xml-rs 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -422,9 +422,10 @@ dependencies = [
 [[package]]
 name = "treexml"
 version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+source = "git+https://github.com/awakecoding/treexml-rs.git?branch=indexmap#f668ac96d9971d19086f5736f3087502cdf3e195"
 dependencies = [
  "failure 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "indexmap 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "xml-rs 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -562,7 +563,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum textwrap 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)" = "307686869c93e71f94da64286f9a9524c0f308a9e1c87a583de8e9c9039ad3f6"
 "checksum thread_local 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)" = "c6b53e329000edc2b34dbe8545fd20e55a333362d0a321909685a19bd28c3f1b"
 "checksum time 0.1.40 (registry+https://github.com/rust-lang/crates.io-index)" = "d825be0eb33fda1a7e68012d51e9c7f451dc1a69391e7fdc197060bb8c56667b"
-"checksum treexml 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "61b58a77e81f51d427f9cc3a5966211e5be59e5f3c4bfc395babf536595a7609"
+"checksum treexml 0.7.0 (git+https://github.com/awakecoding/treexml-rs.git?branch=indexmap)" = "<none>"
 "checksum ucd-util 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "fd2be2d6639d0f8fe6cdda291ad456e23629558d466e2789d2c3e9892bda285d"
 "checksum unicode-width 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "882386231c45df4700b275c7ff55b6f3698780a650026380e72dabe76fa46526"
 "checksum unicode-xid 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "fc72304796d0818e357ead4e000d19c9c174ab23dc11093ac919054d20a6a7fc"
