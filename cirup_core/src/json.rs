@@ -1,34 +1,43 @@
 
+extern crate serde;
 extern crate serde_json;
-use serde_json::{Value};
+extern crate dot_json;
+
+use serde::{Serialize};
+use serde_json::{Value, Map};
+use dot_json::value_to_dot;
 
 use Resource;
 use file::{FileFormat, FormatType};
 use file::{load_string_from_file, save_string_to_file};
 
-fn json_join_path(root_path: &str, child_path: &str) -> String {
-    if root_path.is_empty() {
-        child_path.to_string()
-    } else {
-        vec![root_path.to_string(), child_path.to_string()].join(".")
-    }
-}
-
-fn json_parse_object(root_path: &str, root_value: &Value, resources: &mut Vec<Resource>) {
-    let root_object = root_value.as_object().unwrap();
-    for (key, value) in root_object.iter() {
-        let path = json_join_path(root_path, key);
-        if value.is_object() {
-            json_parse_object(&path, value, resources);
-        } else {
-            let resource = Resource::new(path.as_str(), value.as_str().unwrap());
-            resources.push(resource);
-        }
-    }
-}
-
 pub struct JsonFileFormat {
 
+}
+
+fn json_dot_insert(root_map: &mut Map<String,Value>, name: &str, value: &str) {
+    if let Some(dot_index) = name.find('.') {
+        let root_path = &name[0..dot_index];
+        let child_path = &name[dot_index+1..name.len()];
+
+        if !root_map.contains_key(root_path) {
+            let child_map: Map<String,Value> = Map::new();
+            root_map.insert(root_path.to_string(), Value::Object(child_map));
+        }
+
+        let mut child_map = root_map.get_mut(root_path).unwrap().as_object_mut().unwrap();
+        json_dot_insert(&mut child_map, child_path, value);
+    } else {
+        root_map.insert(name.to_string(), Value::String(value.to_string()));
+    }
+}
+
+fn json_to_string_pretty(value: &Map<String,Value>) -> String {
+    let writer = Vec::new();
+    let formatter = serde_json::ser::PrettyFormatter::with_indent(b"    ");
+    let mut ser = serde_json::Serializer::with_formatter(writer, formatter);
+    value.serialize(&mut ser).unwrap();
+    String::from_utf8(ser.into_inner()).unwrap()
 }
 
 impl FileFormat for JsonFileFormat {
@@ -39,7 +48,12 @@ impl FileFormat for JsonFileFormat {
     fn parse_from_str(&self, text: &str) -> Vec<Resource> {
         let mut resources: Vec<Resource> = Vec::new();
         let root_value: Value = serde_json::from_str(text).unwrap();
-        json_parse_object("", &root_value, &mut resources);
+        let root_value_dot = value_to_dot(&root_value);
+        let root_object_dot = root_value_dot.as_object().unwrap();
+        for (key, value) in root_object_dot.iter() {
+            let resource = Resource::new(key.as_str(), value.as_str().unwrap());
+            resources.push(resource);
+        }
         resources
     }
 
@@ -49,7 +63,13 @@ impl FileFormat for JsonFileFormat {
     }
 
     fn write_to_str(&self, resources: Vec<Resource>) -> String {
-        String::new()
+        let mut root_map: Map<String,Value> = Map::new();
+
+        for resource in resources {
+            json_dot_insert(&mut root_map, &resource.name, &resource.value);
+        }
+
+        json_to_string_pretty(&root_map)
     }
 
     fn write_to_file(&self, filename: &str, resources: Vec<Resource>) {
@@ -104,4 +124,39 @@ fn test_json_parse() {
     let resource = resources.get(5).unwrap();
     assert_eq!(resource.name, "very.deep.object");
     assert_eq!(resource.value, "value");
+}
+
+#[test]
+fn test_json_write() {
+
+    let file_format = JsonFileFormat { };
+
+    let resources = vec![
+        Resource::new("lblBoat", "I'm on a boat."),
+        Resource::new("lblYolo", "You only live once"),
+        Resource::new("lblDogs", "Who let the dogs out?"),
+        Resource::new("language.en", "English"),
+        Resource::new("language.fr", "French"),
+        Resource::new("very.deep.object", "value"),
+    ];
+
+    let expected_text = r#"{
+    "lblBoat": "I'm on a boat.",
+    "lblYolo": "You only live once",
+    "lblDogs": "Who let the dogs out?",
+    "language": {
+        "en": "English",
+        "fr": "French"
+    },
+    "very": {
+        "deep": {
+            "object": "value"
+        }
+    }
+}"#;
+
+    let actual_text = file_format.write_to_str(resources);
+    //println!("{}", actual_text);
+    //println!("{}", expected_text);
+    assert_eq!(actual_text, expected_text);
 }

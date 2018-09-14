@@ -6,7 +6,7 @@ use std::io::prelude::*;
 
 use Resource;
 use file::{FileFormat, FormatType};
-use file::{load_string_from_file, save_string_to_file};
+use file::{load_string_from_file};
 
 /**
  * .restext file format:

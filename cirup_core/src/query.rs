@@ -8,7 +8,7 @@ use rusqlite::{Connection, Statement, Error};
 use rusqlite::{Rows};
 
 use vtab::{create_db, init_db, register_table};
-use file::{vfile_set, save_resource_file, load_resource_str};
+use file::{vfile_set, save_resource_file};
 
 use Resource;
 
@@ -168,6 +168,9 @@ impl CirupEngine {
         }
     }
 }
+
+#[cfg(test)]
+use file::{load_resource_str};
 
 #[test]
 fn test_query() {

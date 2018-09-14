@@ -2,7 +2,11 @@
 extern crate uuid;
 extern crate regex;
 extern crate treexml;
+
+extern crate serde;
 extern crate serde_json;
+extern crate dot_json;
+
 extern crate rusqlite;
 
 #[macro_use]
