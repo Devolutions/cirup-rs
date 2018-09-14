@@ -1,6 +1,8 @@
 
 use regex::Regex;
 use std::fmt;
+use std::fs;
+use std::io::prelude::*;
 
 use Resource;
 use file::{FileFormat, FormatType};
@@ -12,20 +14,27 @@ use file::{load_string_from_file, save_string_to_file};
  * https://docs.microsoft.com/en-us/dotnet/framework/resources/creating-resource-files-for-desktop-apps
  */
 
-/**
- * TODO:
- * - escape '\' as "\\"
- * - replace newline with \r\n
- * - read/write UTF-8 BOM
- * - use \r\n line ending
- */
-
 lazy_static! {
     static ref REGEX_RESTEXT: Regex = Regex::new(r"^\s*(\w+)=(.*)$").unwrap();
 }
 
 pub struct RestextFileFormat {
 
+}
+
+/* https://lise-henry.github.io/articles/optimising_strings.html */
+
+pub fn escape_newlines(input: &str) -> String {
+    let mut output = String::new();
+    for c in input.chars() {
+        match c {
+            '\\' => output.push_str("\\\\"),
+            '\r' => output.push_str("\\r"),
+            '\n' => output.push_str("\\n"),
+            _ => output.push(c)
+        }
+    }
+    output
 }
 
 impl FileFormat for RestextFileFormat {
@@ -58,26 +67,29 @@ impl FileFormat for RestextFileFormat {
         let mut output = String::new();
 
         for resource in resources {
-            fmt::write(&mut output, format_args!("{}={}\n",
-                resource.name, resource.value)).unwrap();
+            let escaped_value = escape_newlines(resource.value.as_str());
+            fmt::write(&mut output, format_args!("{}={}\r\n",
+                resource.name, escaped_value)).unwrap();
         }
 
         output
     }
 
     fn write_to_file(&self, filename: &str, resources: Vec<Resource>) {
+        let bom: [u8; 3] = [0xEF, 0xBB, 0xBF];
         let text = self.write_to_str(resources);
-        save_string_to_file(filename, text.as_str());
+        let mut file = fs::File::create(filename).unwrap();
+        file.write_all(&bom).unwrap();
+        file.write_all(text.as_bytes()).unwrap();
     }
 }
 
 #[test]
 fn test_restext_parse() {
-    let text = r#"
-lblBoat=I'm on a boat.
-lblYolo=You only live once
-lblDogs=Who let the dogs out?
-"#;
+    let text =
+"lblBoat=I'm on a boat.\r\n\
+lblYolo=You only live once\r\n\
+lblDogs=Who let the dogs out?\r\n";
 
     let file_format = RestextFileFormat { };
 
@@ -108,10 +120,9 @@ fn test_restext_write() {
     ];
 
     let expected_text =
-r#"lblBoat=I'm on a boat.
-lblYolo=You only live once
-lblDogs=Who let the dogs out?
-"#;
+"lblBoat=I'm on a boat.\r\n\
+lblYolo=You only live once\r\n\
+lblDogs=Who let the dogs out?\r\n";
 
     let actual_text = file_format.write_to_str(resources);
     println!("{}", actual_text);
