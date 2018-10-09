@@ -5,6 +5,7 @@ use std::fs;
 use std::io::prelude::*;
 
 use Resource;
+use error::CirupError;
 use file::{FileFormat, FormatType};
 use file::{load_string_from_file};
 
@@ -58,9 +59,9 @@ impl FileFormat for RestextFileFormat {
         resources
     }
 
-    fn parse_from_file(&self, filename: &str) -> Vec<Resource> {
-        let text = load_string_from_file(filename);
-        self.parse_from_str(text.as_ref())
+    fn parse_from_file(&self, filename: &str) -> Result<Vec<Resource>, CirupError> {
+        let text = load_string_from_file(filename)?;
+        Ok(self.parse_from_str(text.as_ref()))
     }
 
     fn write_to_str(&self, resources: Vec<Resource>) -> String {

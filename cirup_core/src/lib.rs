@@ -18,6 +18,8 @@ extern crate lazy_static;
 pub mod resource;
 use resource::Resource;
 
+pub mod error;
+
 pub mod json;
 pub mod resx;
 pub mod restext;

@@ -12,7 +12,7 @@ use std::str;
 use file::load_resource_file;
 
 fn query_table(filename: &str) -> Vec<Vec<Value>> {
-    let resources = load_resource_file(filename);
+    let resources = load_resource_file(filename).unwrap();
     let mut rows: Vec<Vec<Value>> = Vec::new();
     for resource in resources.iter() {
         let mut row: Vec<Value> = Vec::new();

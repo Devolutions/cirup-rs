@@ -9,6 +9,7 @@ use std::sync::Mutex;
 use uuid::Uuid;
 
 use Resource;
+use error::CirupError;
 use json::JsonFileFormat;
 use resx::ResxFileFormat;
 use restext::RestextFileFormat;
@@ -24,7 +25,7 @@ pub trait FileFormat {
     const EXTENSION: &'static str;
     const TYPE: FormatType;
     fn parse_from_str(&self, text: &str) -> Vec<Resource>;
-    fn parse_from_file(&self, filename: &str) -> Vec<Resource>;
+    fn parse_from_file(&self, filename: &str) -> Result<Vec<Resource>, CirupError>;
     fn write_to_str(&self, resources: Vec<Resource>) -> String;
     fn write_to_file(&self, filename: &str, resources: Vec<Resource>);
 }
@@ -46,14 +47,14 @@ pub fn get_format_type_from_extension(extension: &str) -> FormatType {
     }
 }
 
-pub fn load_string_from_file(filename: &str) -> String {
+pub fn load_string_from_file(filename: &str) -> Result<String, CirupError> {
     if let Some(text) = vfile_get(filename) {
-        return text;
+        return Ok(text);
     }
     let mut file = fs::File::open(filename).unwrap();
     let mut text = String::new();
     file.read_to_string(&mut text).unwrap();
-    text
+    Ok(text)
 }
 
 pub fn save_string_to_file(filename: &str, text: &str) {
@@ -81,7 +82,7 @@ pub fn load_resource_str(text: &str, extension: &str) -> Vec<Resource> {
     }
 }
 
-pub fn load_resource_file(filename: &str) -> Vec<Resource> {
+pub fn load_resource_file(filename: &str) -> Result<Vec<Resource>, CirupError> {
     let path = Path::new(filename);
     let extension = path.extension().unwrap().to_str().unwrap();
     match extension {
@@ -98,7 +99,7 @@ pub fn load_resource_file(filename: &str) -> Vec<Resource> {
             file_format.parse_from_file(filename)
         },
         _ => {
-            Vec::new()
+            Ok(Vec::new())
         }
     }
 }

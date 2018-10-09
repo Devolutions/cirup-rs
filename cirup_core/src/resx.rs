@@ -3,6 +3,7 @@ extern crate treexml;
 use treexml::{Document, Element};
 
 use Resource;
+use error::CirupError;
 use file::{FileFormat, FormatType};
 use file::{load_string_from_file, save_string_to_file};
 
@@ -33,9 +34,9 @@ impl FileFormat for ResxFileFormat {
         resources
     }
 
-    fn parse_from_file(&self, filename: &str) -> Vec<Resource> {
-        let text = load_string_from_file(filename);
-        self.parse_from_str(text.as_ref())
+    fn parse_from_file(&self, filename: &str) -> Result<Vec<Resource>, CirupError> {
+        let text = load_string_from_file(filename)?;
+        Ok(self.parse_from_str(text.as_ref()))
     }
 
     fn write_to_str(&self, resources: Vec<Resource>) -> String {
