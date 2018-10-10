@@ -3,6 +3,11 @@ extern crate uuid;
 extern crate regex;
 extern crate treexml;
 
+extern crate toml;
+
+#[macro_use]
+extern crate serde_derive;
+
 extern crate serde;
 extern crate serde_json;
 extern crate dot_json;
@@ -19,6 +24,7 @@ pub mod resource;
 use resource::Resource;
 
 pub mod error;
+pub mod config;
 
 pub mod json;
 pub mod resx;
