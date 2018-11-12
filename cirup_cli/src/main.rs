@@ -22,21 +22,21 @@ fn main() {
     let engine = CirupEngine::new();
 
     if let Some(files) = matches.values_of("different") {
-        let (file_a, file_b, file_c) = get_file_args(files.collect());
+        let (file_a, file_b, _file_c) = get_file_args(files.collect());
         engine.register_table_from_file("A", file_a);
         engine.register_table_from_file("B", file_b);
         let query = "SELECT A.key, A.val, B.val FROM A LEFT OUTER JOIN B ON A.key=B.key WHERE A.val <> B.val";
         engine.query(query);
     }
     if let Some(files) = matches.values_of("merge") {
-        let (file_a, file_b, file_c) = get_file_args(files.collect());
+        let (file_a, file_b, _file_c) = get_file_args(files.collect());
         engine.register_table_from_file("A", file_a);
         engine.register_table_from_file("B", file_b);
         let query = "SELECT * FROM A UNION SELECT * from B";
         engine.query(query);
     }
     if let Some(files) = matches.values_of("intersect") {
-        let (file_a, file_b, file_c) = get_file_args(files.collect());
+        let (file_a, file_b, _file_c) = get_file_args(files.collect());
         engine.register_table_from_file("A", file_a);
         engine.register_table_from_file("B", file_b);
         let query = "SELECT * FROM A INTERSECT SELECT * from B";
