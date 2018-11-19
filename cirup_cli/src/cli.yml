@@ -2,6 +2,11 @@ name: cirup
 author: Marc-André Moreau <marcandre.moreau@gmail.com>
 about: a translation continuous integration tool
 args:
+    - config:
+        long: config
+        min_values: 1
+        max_values: 1
+        help: .cirup file
     - different:
         long: different
         min_values: 2
