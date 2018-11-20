@@ -36,7 +36,7 @@ impl Vcs {
     }
 
     fn run(&self, args: &[&str]) {
-        shell::run(&self.executable, Path::new(&self.local_path), args);
+        shell::status(&self.executable, Path::new(&self.local_path), args);
     }
 
     fn init_repo(&self) {
@@ -89,5 +89,10 @@ impl Vcs {
 
     pub fn diff_commits(&self, filespec: &str, old_commit: &str, new_commit: &str) {
         self.run(&["diff", old_commit, new_commit, filespec]);
+    }
+
+    pub fn show(&self, filespec: &str, commit: &str, output: &str) {
+        let show = format!("{}:{}", commit, filespec);
+        shell::output_to_file(&self.executable, Path::new(&self.local_path), &["show", &show], Path::new(output));
     }
 }

@@ -4,40 +4,78 @@ about: a translation continuous integration tool
 args:
     - config:
         long: config
-        min_values: 1
-        max_values: 1
-        help: .cirup file
-    - different:
-        long: different
-        min_values: 2
-        max_values: 3
-        help: input1 input2 [output]
-    - merge:
-        long: merge
-        min_values: 2
-        max_values: 3
-        help: input1 input2 [output]
-    - intersect:
-        long: intersect
-        min_values: 2
-        max_values: 3
-        help: input1 input2 [output]
-    - subtract:
-        long: subtract
-        min_values: 2
-        max_values: 3
-        help: input1 input2 [output]
-    - convert:
-        long: convert
-        min_values: 2
-        max_values: 2
-        help: input output
+        short: c
+        takes_value: true
+        help: Sets the configuration file to use
+subcommands:
     - print:
-        long: print
-        min_values: 1
-        max_values: 1
-        help: input
-    - verbose:
-        short: v
-        multiple: true
-        help: Sets the level of verbosity
+        args:
+            - file:
+                index: 1
+                takes_value: true
+                required: true
+            - output:
+                index: 2
+                takes_value: true
+    - convert:
+        args:
+            - file:
+                index: 1
+                takes_value: true
+                required: true
+            - output:
+                index: 2
+                takes_value: true
+                required: true
+    - diff:
+        args:
+            - file1:
+                index: 1
+                takes_value: true
+                required: true
+            - file2:
+                index: 2
+                takes_value: true
+                required: true
+            - output:
+                index: 3
+                takes_value: true
+    - merge:
+        args:
+            - file1:
+                index: 1
+                takes_value: true
+                required: true
+            - file2:
+                index: 2
+                takes_value: true
+                required: true
+            - output:
+                index: 3
+                takes_value: true
+    - intersect:
+        args:
+            - file1:
+                index: 1
+                takes_value: true
+                required: true
+            - file2:
+                index: 2
+                takes_value: true
+                required: true
+            - output:
+                index: 3
+                takes_value: true
+    - subtract:
+        args:
+            - file1:
+                index: 1
+                takes_value: true
+                required: true
+            - file2:
+                index: 2
+                takes_value: true
+                required: true
+            - output:
+                index: 3
+                takes_value: true

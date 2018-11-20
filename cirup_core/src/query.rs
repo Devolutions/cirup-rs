@@ -82,7 +82,6 @@ pub fn execute_query(db: &Connection, query: &str) {
                 row.push(v);
             }
             table_result.push(row);
-
             let mut response = statement.query(&[]).unwrap();
             print_pretty(column_names, &mut response);
         },
@@ -123,6 +122,32 @@ pub fn query_file(input: &str, table: &str, query: &str) {
     execute_query(&db, query);
 }
 
+pub struct CirupQuery {
+    engine: CirupEngine,
+}
+
+impl CirupQuery {
+    pub fn new() -> Self {
+        CirupQuery {
+            engine: CirupEngine::new(),
+        }
+    }
+
+    pub fn register_table(&self, table: &str, filename: &str) {
+        self.engine.register_table_from_file(table, filename);
+    }
+
+    pub fn query(&self, query: &str, out_file: Option<&str>) {
+        let resources = self.engine.query_resource(query);
+
+        if out_file.is_some() {
+            save_resource_file(out_file.unwrap(), resources);
+        } else {
+            print_resources_pretty(&resources);
+        }
+    }
+}
+
 pub struct CirupEngine {
     pub db: Connection,
 }
@@ -147,25 +172,8 @@ impl CirupEngine {
         execute_query_resource(&self.db, query)
     }
 
-    pub fn query_subtract(&self) -> Vec<Resource> {
-        let query = "SELECT * FROM A WHERE A.key NOT IN (SELECT B.key FROM B)";
-        execute_query_resource(&self.db, query)
-    }
-
     pub fn query(&self, query: &str) {
         execute_query(&self.db, query);
-    }
-
-    pub fn subtract_command(&self, file_a: &str, file_b: &str, file_c: Option<&str>) {
-        self.register_table_from_file("A", file_a);
-        self.register_table_from_file("B", file_b);
-        let resources = self.query_subtract();
-
-        if file_c.is_some() {
-            save_resource_file(file_c.unwrap(), resources);
-        } else {
-            print_resources_pretty(&resources);
-        }
     }
 }
 
@@ -199,6 +207,6 @@ fn test_query_subtract() {
     engine.register_table_from_str("B", "test1B.restext", include_str!("../test/subtract/test1B.restext"));
     let expected = load_resource_str(include_str!("../test/subtract/test1C.restext"), "restext");
 
-    let actual = engine.query_subtract();
+    let actual = engine.query_resource("SELECT * FROM A WHERE A.key NOT IN (SELECT B.key FROM B)");
     assert_eq!(actual, expected);
 }

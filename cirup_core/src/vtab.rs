@@ -184,21 +184,23 @@ impl VTabCursor for CirupTabCursor {
         self.row_id = 0;
         self.next()
     }
+
     fn next(&mut self) -> Result<()> {
-        {
-            if self.row_id == self.rows.len() as i64 {
-                self.eot = true;
-                return Ok(());
-            } else {
-                self.cols = self.rows[self.row_id as usize].clone();
-                self.row_id += 1;
-            }
+        if self.row_id == self.rows.len() as i64 {
+            self.eot = true;
+        } else {
+            self.cols = self.rows[self.row_id as usize].clone();
+            self.row_id += 1;
+            self.eot = false;
         }
+
         Ok(())
     }
+
     fn eof(&self) -> bool {
         self.eot
     }
+
     fn column(&self, ctx: &mut Context, col: c_int) -> Result<()> {
         if col < 0 || col as usize >= self.cols.len() {
             return Err(Error::ModuleError(format!(
@@ -211,6 +213,7 @@ impl VTabCursor for CirupTabCursor {
         }
         ctx.set_result(&self.cols[col as usize].to_owned())
     }
+
     fn rowid(&self) -> Result<i64> {
         Ok(self.row_id)
     }
