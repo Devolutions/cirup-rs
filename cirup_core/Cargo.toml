@@ -13,6 +13,7 @@ dot_json = "0.2.0"
 lazy_static = "1.0.0"
 prettytable-rs = "^0.6"
 find_git = "1.2.0"
+tempfile = "3.0.4"
 
 [dependencies.uuid]
 version = "0.6"

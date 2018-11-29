@@ -8,7 +8,7 @@ use serde_json::{Value, Map};
 use dot_json::value_to_dot;
 
 use Resource;
-use error::CirupError;
+use std::error::Error;
 use file::{FileFormat, FormatType};
 use file::{load_string_from_file, save_string_to_file};
 
@@ -46,21 +46,21 @@ impl FileFormat for JsonFileFormat {
     const EXTENSION: &'static str = "json";
     const TYPE: FormatType = FormatType::Json;
 
-    fn parse_from_str(&self, text: &str) -> Vec<Resource> {
+    fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<Error>> {
         let mut resources: Vec<Resource> = Vec::new();
-        let root_value: Value = serde_json::from_str(text).unwrap();
+        let root_value: Value = serde_json::from_str(text)?;
         let root_value_dot = value_to_dot(&root_value);
         let root_object_dot = root_value_dot.as_object().unwrap();
         for (key, value) in root_object_dot.iter() {
             let resource = Resource::new(key.as_str(), value.as_str().unwrap());
             resources.push(resource);
         }
-        resources
+        Ok(resources)
     }
 
-    fn parse_from_file(&self, filename: &str) -> Result<Vec<Resource>, CirupError> {
+    fn parse_from_file(&self, filename: &str) -> Result<Vec<Resource>, Box<Error>> {
         let text = load_string_from_file(filename)?;
-        Ok(self.parse_from_str(text.as_ref()))
+        self.parse_from_str(text.as_ref())
     }
 
     fn write_to_str(&self, resources: Vec<Resource>) -> String {
@@ -100,7 +100,7 @@ fn test_json_parse() {
 
     let file_format = JsonFileFormat { };
 
-    let resources = file_format.parse_from_str(&text);
+    let resources = file_format.parse_from_str(&text).unwrap();
 
     let resource = resources.get(0).unwrap();
     assert_eq!(resource.name, "lblBoat");

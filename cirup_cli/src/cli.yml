@@ -2,13 +2,36 @@ name: cirup
 author: Marc-André Moreau <marcandre.moreau@gmail.com>
 about: a translation continuous integration tool
 args:
-    - config:
-        long: config
-        short: c
-        takes_value: true
-        help: Sets the configuration file to use
+        - config:
+            long: config
+            short: c
+            takes_value: true
+            global: true
+            help: Sets the configuration file to use
+        - old_commit:
+            long: old-commit
+            short: old
+            takes_value: true
+            global: true
+        - new_commit:
+            long: new-commit
+            short: new
+            takes_value: true
+            requires: 
+                - old_commit
+            global: true
 subcommands:
-    - print:
+    - pull:
+    - vcs-log:
+        about: Some helpful hints!
+        args:
+            - format:
+                long: format
+                short: f
+                takes_value: true
+                default_value: oneline
+    - vcs-diff:
+    - file-print:
         args:
             - file:
                 index: 1
@@ -17,7 +40,7 @@ subcommands:
             - output:
                 index: 2
                 takes_value: true
-    - convert:
+    - file-convert:
         args:
             - file:
                 index: 1
@@ -27,7 +50,7 @@ subcommands:
                 index: 2
                 takes_value: true
                 required: true
-    - diff:
+    - file-diff:
         args:
             - file1:
                 index: 1
@@ -40,7 +63,11 @@ subcommands:
             - output:
                 index: 3
                 takes_value: true
-    - merge:
+            - show_changes:
+                long: show-changes
+                short: C
+                takes_value: false
+    - file-merge:
         args:
             - file1:
                 index: 1
@@ -53,7 +80,7 @@ subcommands:
             - output:
                 index: 3
                 takes_value: true
-    - intersect:
+    - file-intersect:
         args:
             - file1:
                 index: 1
@@ -66,7 +93,7 @@ subcommands:
             - output:
                 index: 3
                 takes_value: true
-    - subtract:
+    - file-subtract:
         args:
             - file1:
                 index: 1

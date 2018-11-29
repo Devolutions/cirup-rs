@@ -1,54 +1,47 @@
-use std::process::Command;
-use std::path::Path;
+use std::error::Error;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
+use std::path::Path;
+use std::process::Command;
 
-pub fn status(exe: &str, dir: &Path, args: &[&str]) -> i32 {
+pub fn status(exe: &str, dir: &Path, args: &[&str]) -> Result<i32, Box<Error>> {
     let status = Command::new(exe)
         .current_dir(dir)
         .args(args)
-        .status()
-        .expect("failed to run command");
+        .status()?;
 
     match status.code() {
-        Some(_n) => _n,
-        None => -1 // Terminated by signal (unix)
+        Some(c) => Ok(c),
+        None => Err("process terminated by signal")?
     }
 }
 
-pub fn output(exe: &str, dir: &Path, args: &[&str]) -> String {
+pub fn output(exe: &str, dir: &Path, args: &[&str]) -> Result<String, Box<Error>> {
     let output = Command::new(exe)
         .current_dir(dir)
         .args(args)
-        .output()
-        .expect("failed to run command");
+        .output()?;
 
-    println!(">>> {:?}", output);
-
-    // todo GIT success == 0
-
-    String::from_utf8_lossy(&output.stdout).to_string()
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
-pub fn output_to_file(exe: &str, dir: &Path, args: &[&str], out: &Path) -> i32 {
+pub fn output_to_file(exe: &str, dir: &Path, args: &[&str], out: &Path) -> Result<(), Box<Error>> {
     let mut file = OpenOptions::new()
         .write(true)
         .create(true)
-        .open(out)
-        .expect("couldn't open output file for writing");
+        .open(out)?;
 
-    let output = output(exe, dir, args);
+    let output = output(exe, dir, args)?;
 
-    println!(">>> {}", output);
+    file.write_all(output.as_bytes())?;
 
-    file.write_all(output.as_bytes()).expect("couldn't write to output file");
-    
-    1
+    Ok(())
 }
 
 #[test]
 fn shell_status() {
+    // TODO This test is not cross-platform
     let dir = Path::new(".");
     let status = status("ls", &dir, &[ "-l" ]);
-    assert_eq!(status, 0)
+    assert!(status.is_ok())
 }

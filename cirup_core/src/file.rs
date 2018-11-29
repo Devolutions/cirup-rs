@@ -9,7 +9,7 @@ use std::sync::Mutex;
 use uuid::Uuid;
 
 use Resource;
-use error::CirupError;
+use std::error::Error;
 use json::JsonFileFormat;
 use resx::ResxFileFormat;
 use restext::RestextFileFormat;
@@ -24,8 +24,8 @@ pub enum FormatType {
 pub trait FileFormat {
     const EXTENSION: &'static str;
     const TYPE: FormatType;
-    fn parse_from_str(&self, text: &str) -> Vec<Resource>;
-    fn parse_from_file(&self, filename: &str) -> Result<Vec<Resource>, CirupError>;
+    fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<Error>>;
+    fn parse_from_file(&self, filename: &str) -> Result<Vec<Resource>, Box<Error>>;
     fn write_to_str(&self, resources: Vec<Resource>) -> String;
     fn write_to_file(&self, filename: &str, resources: Vec<Resource>);
 }
@@ -47,7 +47,7 @@ pub fn get_format_type_from_extension(extension: &str) -> FormatType {
     }
 }
 
-pub fn load_string_from_file(filename: &str) -> Result<String, CirupError> {
+pub fn load_string_from_file(filename: &str) -> Result<String, Box<Error>> {
     if let Some(text) = vfile_get(filename) {
         return Ok(text);
     }
@@ -62,7 +62,7 @@ pub fn save_string_to_file(filename: &str, text: &str) {
     file.write_all(text.as_bytes()).unwrap();
 }
 
-pub fn load_resource_str(text: &str, extension: &str) -> Vec<Resource> {
+pub fn load_resource_str(text: &str, extension: &str) -> Result<Vec<Resource>, Box<Error>> {
     match extension {
         JsonFileFormat::EXTENSION => {
             let file_format = JsonFileFormat { };
@@ -77,12 +77,12 @@ pub fn load_resource_str(text: &str, extension: &str) -> Vec<Resource> {
             file_format.parse_from_str(text)
         },
         _ => {
-            Vec::new()
+            Ok(Vec::new())
         }
     }
 }
 
-pub fn load_resource_file(filename: &str) -> Result<Vec<Resource>, CirupError> {
+pub fn load_resource_file(filename: &str) -> Result<Vec<Resource>, Box<Error>> {
     let path = Path::new(filename);
     let extension = path.extension().unwrap().to_str().unwrap();
     match extension {

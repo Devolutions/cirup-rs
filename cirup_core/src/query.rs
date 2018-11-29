@@ -122,32 +122,6 @@ pub fn query_file(input: &str, table: &str, query: &str) {
     execute_query(&db, query);
 }
 
-pub struct CirupQuery {
-    engine: CirupEngine,
-}
-
-impl CirupQuery {
-    pub fn new() -> Self {
-        CirupQuery {
-            engine: CirupEngine::new(),
-        }
-    }
-
-    pub fn register_table(&self, table: &str, filename: &str) {
-        self.engine.register_table_from_file(table, filename);
-    }
-
-    pub fn query(&self, query: &str, out_file: Option<&str>) {
-        let resources = self.engine.query_resource(query);
-
-        if out_file.is_some() {
-            save_resource_file(out_file.unwrap(), resources);
-        } else {
-            print_resources_pretty(&resources);
-        }
-    }
-}
-
 pub struct CirupEngine {
     pub db: Connection,
 }
@@ -159,7 +133,8 @@ impl CirupEngine {
         }
     }
 
-    pub fn register_table_from_str(&self, table: &str, filename: &str, data: &str) {
+    #[allow(dead_code)]
+    fn register_table_from_str(&self, table: &str, filename: &str, data: &str) {
         vfile_set(filename, data);
         register_table(&self.db, table, filename);
     }
@@ -174,6 +149,94 @@ impl CirupEngine {
 
     pub fn query(&self, query: &str) {
         execute_query(&self.db, query);
+    }
+}
+
+pub struct CirupQuery {
+    engine: CirupEngine,
+    query: String,
+}
+
+const PRINT_QUERY : &str = "SELECT * FROM A";
+const DIFF_QUERY : &str = r"
+        SELECT A.key, A.val, B.val 
+        FROM A 
+        LEFT OUTER JOIN B ON A.key = B.key 
+        WHERE (B.val IS NULL)";
+const CHANGE_QUERY : &str = r"
+        SELECT A.key, A.val, B.val 
+        FROM A 
+        LEFT OUTER JOIN B ON A.key = B.key 
+        WHERE (B.val IS NULL) OR (A.val <> B.val)";
+const MERGE_QUERY : &str = r"
+        SELECT 
+            A.key,
+            (CASE WHEN B.val IS NOT NULL
+                  THEN B.val
+                  ELSE A.val END) as val
+        FROM A
+        LEFT OUTER JOIN B on A.key = B.key";
+const INTERSECT_QUERY : &str = r"
+        SELECT * FROM A 
+        INTERSECT 
+        SELECT * from B";
+const SUBTRACT_QUERY : &str = r"
+        SELECT * FROM A 
+        WHERE A.key NOT IN 
+            (SELECT B.key FROM B)";
+const CONVERT_QUERY : &str = "SELECT * FROM A";
+
+pub fn query_print(file: &str) -> CirupQuery {
+    CirupQuery::new(PRINT_QUERY, file, None)
+}
+
+pub fn query_convert(file: &str) -> CirupQuery {
+    CirupQuery::new(CONVERT_QUERY, file, None)
+}
+
+pub fn query_diff(file_one: &str, file_two: &str) -> CirupQuery {
+    CirupQuery::new(DIFF_QUERY, file_one, Some(file_two))
+}
+
+pub fn query_change(file_one: &str, file_two: &str) -> CirupQuery {
+    CirupQuery::new(CHANGE_QUERY, file_one, Some(file_two))
+}
+
+pub fn query_merge(file_one: &str, file_two: &str) -> CirupQuery {
+    CirupQuery::new(MERGE_QUERY, file_one, Some(file_two))
+}
+
+pub fn query_intersect(file_one: &str, file_two: &str) -> CirupQuery {
+    CirupQuery::new(INTERSECT_QUERY, file_one, Some(file_two))
+}
+
+pub fn query_subtract(file_one: &str, file_two: &str) -> CirupQuery {
+    CirupQuery::new(SUBTRACT_QUERY, file_one, Some(file_two))
+}
+
+impl CirupQuery {
+    pub fn new(query: &str, file_one: &str, file_two: Option<&str>) -> Self {
+       let engine = CirupEngine::new();
+       engine.register_table_from_file("A", file_one);
+
+       if file_two.is_some() {
+           engine.register_table_from_file("B", file_two.unwrap());
+       }
+
+        CirupQuery {
+            engine: engine,
+            query: query.to_string(),
+        }
+    }
+
+    pub fn run(&self, out_file: Option<&str>) {
+        let resources = self.engine.query_resource(&self.query);
+
+        if out_file.is_some() {
+            save_resource_file(out_file.unwrap(), resources);
+        } else {
+            print_resources_pretty(&resources);
+        }
     }
 }
 
@@ -205,7 +268,7 @@ fn test_query_subtract() {
 
     engine.register_table_from_str("A", "test1A.restext", include_str!("../test/subtract/test1A.restext"));
     engine.register_table_from_str("B", "test1B.restext", include_str!("../test/subtract/test1B.restext"));
-    let expected = load_resource_str(include_str!("../test/subtract/test1C.restext"), "restext");
+    let expected = load_resource_str(include_str!("../test/subtract/test1C.restext"), "restext").unwrap();
 
     let actual = engine.query_resource("SELECT * FROM A WHERE A.key NOT IN (SELECT B.key FROM B)");
     assert_eq!(actual, expected);

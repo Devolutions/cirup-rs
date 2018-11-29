@@ -3,14 +3,14 @@ extern crate uuid;
 extern crate regex;
 extern crate treexml;
 
-//extern crate toml;
-
 #[macro_use]
 extern crate serde_derive;
-
+extern crate toml;
 extern crate serde;
 extern crate serde_json;
 extern crate dot_json;
+
+extern crate tempfile;
 
 extern crate rusqlite;
 
@@ -37,3 +37,4 @@ pub mod query;
 
 pub mod vcs;
 pub mod job;
+pub mod sync;

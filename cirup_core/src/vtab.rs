@@ -12,14 +12,19 @@ use std::str;
 use file::load_resource_file;
 
 fn query_table(filename: &str) -> Vec<Vec<Value>> {
-    let resources = load_resource_file(filename).unwrap();
     let mut rows: Vec<Vec<Value>> = Vec::new();
-    for resource in resources.iter() {
-        let mut row: Vec<Value> = Vec::new();
-        row.push(Value::from(resource.name.clone()));
-        row.push(Value::from(resource.value.clone()));
-        rows.push(row);
-    }
+    match load_resource_file(filename) {
+        Ok(val)  => {
+            for resource in val.iter() {
+                let mut row: Vec<Value> = Vec::new();
+                row.push(Value::from(resource.name.clone()));
+                row.push(Value::from(resource.value.clone()));
+                rows.push(row);
+            }
+        },
+        Err(_e) => {}, // TODO: we couldn't parse the file
+    };
+    
     rows
 }
 

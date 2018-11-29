@@ -5,7 +5,7 @@ use std::fs;
 use std::io::prelude::*;
 
 use Resource;
-use error::CirupError;
+use std::error::Error;
 use file::{FileFormat, FormatType};
 use file::{load_string_from_file};
 
@@ -43,7 +43,7 @@ impl FileFormat for RestextFileFormat {
     const EXTENSION: &'static str = "restext";
     const TYPE: FormatType = FormatType::Restext;
 
-    fn parse_from_str(&self, text: &str) -> Vec<Resource> {
+    fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<Error>> {
         let mut resources: Vec<Resource> = Vec::new();
 
         for line in text.lines() {
@@ -56,12 +56,12 @@ impl FileFormat for RestextFileFormat {
             }
         }
 
-        resources
+        Ok(resources)
     }
 
-    fn parse_from_file(&self, filename: &str) -> Result<Vec<Resource>, CirupError> {
+    fn parse_from_file(&self, filename: &str) -> Result<Vec<Resource>, Box<Error>> {
         let text = load_string_from_file(filename)?;
-        Ok(self.parse_from_str(text.as_ref()))
+        self.parse_from_str(text.as_ref())
     }
 
     fn write_to_str(&self, resources: Vec<Resource>) -> String {
@@ -94,7 +94,7 @@ lblDogs=Who let the dogs out?\r\n";
 
     let file_format = RestextFileFormat { };
 
-    let resources = file_format.parse_from_str(&text);
+    let resources = file_format.parse_from_str(&text).unwrap();
 
     let resource = resources.get(0).unwrap();
     assert_eq!(resource.name, "lblBoat");
