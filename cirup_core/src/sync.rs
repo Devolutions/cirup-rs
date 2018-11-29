@@ -55,6 +55,18 @@ impl Sync {
             Err(format!("source_dir {:?} does not exist or not a directory", &source_dir))?;
         }
 
+        let export_dir = Path::new(&config.job.export_dir);
+
+        if !export_dir.is_dir() {
+            fs::create_dir_all(export_dir)?;
+        }
+
+        let import_dir = Path::new(&config.job.import_dir);
+
+        if !import_dir.is_dir() {
+            fs::create_dir_all(import_dir)?;
+        }
+
         let languages = find_languages(&source_dir, &config.job.source_match, &config.job.source_name_match)?;
 
         if languages.is_empty() {
@@ -140,7 +152,6 @@ impl Sync {
             let target_path = self.vcs_relative_path(target_language_filename);
             self.vcs.show(&target_path.to_string_lossy(), new_commit, &file_path.to_string_lossy())?;
 
-            // TODO panic if export_dir doesn't exits
             let target_out_path = Path::new(&self.export_dir).join(target_language_filename);
 
             let query = query::query_diff(&out_path.to_string_lossy(), &target_path.to_string_lossy());
