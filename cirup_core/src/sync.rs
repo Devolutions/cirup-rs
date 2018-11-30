@@ -52,20 +52,20 @@ impl Sync {
         vcs.pull()?;
 
          let source_dir = Path::new(&config.vcs.local_path)
-            .join(config.job.source_dir.to_string());
+            .join(config.sync.source_dir.to_string());
 
         if !source_dir.is_dir() {
             Err(format!("source_dir {:?} does not exist or not a directory", &source_dir))?;
         }
 
-        let working_dir = Path::new(&config.job.working_dir);
+        let working_dir = Path::new(&config.sync.working_dir);
 
         if !working_dir.is_dir() {
             fs::create_dir_all(working_dir)?;
         }
 
-        let match_rex = Regex::new(&config.job.source_match)?;
-        let lang_rex = Regex::new(&config.job.source_name_match)?;
+        let match_rex = Regex::new(&config.sync.source_match)?;
+        let lang_rex = Regex::new(&config.sync.source_name_match)?;
 
         let languages = find_languages(&source_dir, &match_rex, &lang_rex)?;
 
@@ -73,17 +73,17 @@ impl Sync {
             Err(format!("source_dir {:?} doesn't contain any languages", &source_dir))?;
         }
         
-        if !languages.contains_key(&config.job.source_language) {
+        if !languages.contains_key(&config.sync.source_language) {
             Err(format!("source_dir {:?} doesn't contain source language {}", 
-                &source_dir, &config.job.source_language))?;
+                &source_dir, &config.sync.source_language))?;
         }
 
         let sync = Sync {
             vcs: vcs,
             languages: languages,
-            source_language: config.job.source_language.to_string(),
-            source_path: config.job.source_dir.to_string(),
-            working_dir: config.job.working_dir.to_string(),
+            source_language: config.sync.source_language.to_string(),
+            source_path: config.sync.source_dir.to_string(),
+            working_dir: config.sync.working_dir.to_string(),
             match_rex: match_rex,
             lang_rex: lang_rex,
         };

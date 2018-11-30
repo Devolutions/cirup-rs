@@ -7,7 +7,7 @@ use toml;
 #[derive(Serialize,Deserialize)]
 pub struct Config {
     pub vcs: Vcs,
-    pub job: Job,
+    pub sync: Sync,
 }
 
 #[derive(Serialize,Deserialize)]
@@ -18,7 +18,7 @@ pub struct Vcs {
 }
 
 #[derive(Serialize,Deserialize)]
-pub struct Job {
+pub struct Sync {
     pub source_language: String,
     pub source_match: String,
     pub source_name_match: String,
@@ -53,7 +53,7 @@ fn config_write() {
             local_path: "xxx".to_string(),
             remote_path: "yyy".to_string(),
         },
-        job: Job {
+        sync: Sync {
             source_language: "en".to_string(),
             source_match: "\\.json$".to_string(),
             source_name_match: "(.+?)(\\.[^.]*$|$)".to_string(),

@@ -36,5 +36,4 @@ pub mod vtab;
 pub mod query;
 
 pub mod vcs;
-pub mod job;
 pub mod sync;
