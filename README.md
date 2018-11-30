@@ -41,3 +41,6 @@ Translation files will contain all keys that have not been translated from the s
 If you specify a commit range (with old-commit, and optionally, new-commit), translation files will contain all keys that have either not been translated from the source language, or have been updated in the source language.
 ###### push
 Merge all the translation files in the working directory back into version control.
+
+##### other commands
+There are other useful commands available that perform operations on individual files using the cirup engine. Check the command line help.
