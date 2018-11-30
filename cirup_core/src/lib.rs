@@ -3,14 +3,14 @@ extern crate uuid;
 extern crate regex;
 extern crate treexml;
 
-extern crate toml;
-
 #[macro_use]
 extern crate serde_derive;
-
+extern crate toml;
 extern crate serde;
 extern crate serde_json;
 extern crate dot_json;
+
+extern crate tempfile;
 
 extern crate rusqlite;
 
@@ -24,6 +24,7 @@ pub mod resource;
 use resource::Resource;
 
 pub mod error;
+pub mod shell;
 pub mod config;
 
 pub mod json;
@@ -33,3 +34,6 @@ pub mod restext;
 pub mod file;
 pub mod vtab;
 pub mod query;
+
+pub mod vcs;
+pub mod sync;

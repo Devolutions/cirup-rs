@@ -12,14 +12,19 @@ use std::str;
 use file::load_resource_file;
 
 fn query_table(filename: &str) -> Vec<Vec<Value>> {
-    let resources = load_resource_file(filename).unwrap();
     let mut rows: Vec<Vec<Value>> = Vec::new();
-    for resource in resources.iter() {
-        let mut row: Vec<Value> = Vec::new();
-        row.push(Value::from(resource.name.clone()));
-        row.push(Value::from(resource.value.clone()));
-        rows.push(row);
-    }
+    match load_resource_file(filename) {
+        Ok(val)  => {
+            for resource in val.iter() {
+                let mut row: Vec<Value> = Vec::new();
+                row.push(Value::from(resource.name.clone()));
+                row.push(Value::from(resource.value.clone()));
+                rows.push(row);
+            }
+        },
+        Err(_e) => {}, // TODO: we couldn't parse the file
+    };
+    
     rows
 }
 
@@ -184,21 +189,23 @@ impl VTabCursor for CirupTabCursor {
         self.row_id = 0;
         self.next()
     }
+
     fn next(&mut self) -> Result<()> {
-        {
-            if self.row_id == self.rows.len() as i64 {
-                self.eot = true;
-                return Ok(());
-            } else {
-                self.cols = self.rows[self.row_id as usize].clone();
-                self.row_id += 1;
-            }
+        if self.row_id == self.rows.len() as i64 {
+            self.eot = true;
+        } else {
+            self.cols = self.rows[self.row_id as usize].clone();
+            self.row_id += 1;
+            self.eot = false;
         }
+
         Ok(())
     }
+
     fn eof(&self) -> bool {
         self.eot
     }
+
     fn column(&self, ctx: &mut Context, col: c_int) -> Result<()> {
         if col < 0 || col as usize >= self.cols.len() {
             return Err(Error::ModuleError(format!(
@@ -211,6 +218,7 @@ impl VTabCursor for CirupTabCursor {
         }
         ctx.set_result(&self.cols[col as usize].to_owned())
     }
+
     fn rowid(&self) -> Result<i64> {
         Ok(self.row_id)
     }

@@ -2,15 +2,144 @@
 extern crate clap;
 extern crate cirup_core;
 
-use clap::App;
-use cirup_core::query::CirupEngine;
-use cirup_core::file::save_resource_file;
+use std::error::Error;
+use std::path::Path;
 
-fn get_file_args(files: Vec<&str>) -> (&str, &str, Option<&str>) {
-    if files.len() > 2 {
-        (files[0], files[1], Some(files[2]))
-    } else {
-        (files[0], files[1], None)
+use clap::App;
+
+use cirup_core::config::Config;
+use cirup_core::query;
+use cirup_core::sync::Sync;
+use cirup_core::vcs::Vcs;
+
+fn print(input: &str, out_file: Option<&str>) {
+    let query = query::query_print(input);
+    query.run_interactive(out_file);
+}
+
+fn diff(file_one: &str, file_two: &str, out_file: Option<&str>) {
+    let query = query::query_diff(file_one, file_two);
+    query.run_interactive(out_file);
+}
+
+fn change(file_one: &str, file_two: &str, out_file: Option<&str>) {
+    let query = query::query_change(file_one, file_two);
+    query.run_interactive(out_file);
+}
+
+fn merge(file_one: &str, file_two: &str, out_file: Option<&str>) {
+    let query = query::query_merge(file_one, file_two);
+    query.run_interactive(out_file);
+}
+
+fn intersect(file_one: &str, file_two: &str, out_file: Option<&str>) {
+    let query = query::query_intersect(file_one, file_two);
+    query.run_interactive(out_file);
+}
+
+fn subtract(file_one: &str, file_two: &str, out_file: Option<&str>) {
+    let query = query::query_subtract(file_one, file_two);
+    query.run_interactive(out_file);
+}
+
+fn convert(file_one: &str, out_file: &str) {
+    let query = query::query_convert(file_one);
+    query.run_interactive(Some(out_file));
+}
+
+fn run(matches: &clap::ArgMatches, config: Option<Config>) -> Result<(), Box<Error>> {
+    match matches.subcommand() {
+        ("file-print", Some(args)) => { 
+            print(args.value_of("file").unwrap(), args.value_of("output"));
+            Ok(())
+        },
+        ("file-diff", Some(args)) => { 
+            if args.is_present("show_changes") {
+                change(args.value_of("file1").unwrap(), args.value_of("file2").unwrap(), args.value_of("output"));
+            } else {
+                diff(args.value_of("file1").unwrap(), args.value_of("file2").unwrap(), args.value_of("output"));
+            }
+            Ok(())
+        },
+        ("file-merge", Some(args)) => {
+            merge(args.value_of("file1").unwrap(), args.value_of("file2").unwrap(), args.value_of("output"));
+            Ok(())
+        },
+        ("file-intersect", Some(args)) => {
+            intersect(args.value_of("file1").unwrap(), args.value_of("file2").unwrap(), args.value_of("output"));
+            Ok(())
+        },
+        ("file-subtract", Some(args)) => {
+            subtract(args.value_of("file1").unwrap(), args.value_of("file2").unwrap(), args.value_of("output"));
+            Ok(())
+        },
+        ("file-convert", Some(args)) => {
+            convert(args.value_of("file").unwrap(), args.value_of("output").unwrap());
+            Ok(())
+        },
+        ("vcs-log", Some(args)) => {
+            match config {
+                Some(c) => {
+                    let sync = Sync::new(&c)?;
+                    let vcs = Vcs::new(&c)?;
+
+                    println!("source language is {:?}", sync.source_language_path());
+
+                    vcs.pull()?;  
+                    vcs.log(
+                        &sync.source_language_path().to_string_lossy(), 
+                        args.value_of("format"), 
+                        args.value_of("old_commit"), 
+                        args.value_of("new_commit"), 
+                        true)?;
+
+                    Ok(())
+                },
+                None => { Err("configuration file required")? }
+            }
+        },
+        ("vcs-diff", Some(args)) => {
+            match config {
+                Some(c) => {
+                    let sync = Sync::new(&c)?;
+                    let vcs = Vcs::new(&c)?;
+
+                    println!("source language is {:?}", sync.source_language_path());
+
+                    vcs.pull()?;  
+                    vcs.diff(
+                        &sync.source_language_path().to_string_lossy(), 
+                        args.value_of("old_commit").unwrap(), 
+                        args.value_of("new_commit"), )?;
+
+                    Ok(())
+                },
+                None => { Err("configuration file required")? }
+            }
+        },
+        ("pull", Some(args)) => {
+            match config {
+                Some(c) => {
+                    let sync = Sync::new(&c)?;
+                    sync.pull(args.value_of("old_commit"), args.value_of("new_commit"))?;
+
+                    Ok(())
+                },
+                None => { Err("configuration file required")? }
+            }
+        },
+        ("push", Some(args)) => {
+            match config {
+                Some(c) => {
+                    let sync = Sync::new(&c)?;
+                    sync.push(args.is_present("force"))?;
+
+                    Ok(())
+                },
+                None => { Err("configuration file required")? }
+            }
+        }
+        _ => { Err("unrecognised subcommand")? },
     }
 }
 
@@ -19,47 +148,17 @@ fn main() {
     let app = App::from_yaml(yaml);
     let matches = app.version(crate_version!()).get_matches();
 
-    let engine = CirupEngine::new();
+    let mut config : Option<Config> = None;
 
-    if let Some(files) = matches.values_of("different") {
-        let (file_a, file_b, file_c) = get_file_args(files.collect());
-        engine.register_table_from_file("A", file_a);
-        engine.register_table_from_file("B", file_b);
-        let query = "SELECT A.key, A.val, B.val FROM A LEFT OUTER JOIN B ON A.key=B.key WHERE A.val <> B.val";
-        engine.query(query);
+    if let Some(config_file) = matches.value_of("config") {
+        match Config::new(Path::new(config_file)) {
+            Ok(c) => { config = Some(c) },
+            Err(e) => { println!("failed to read config file: {:?}", e) }
+        }
     }
-    if let Some(files) = matches.values_of("merge") {
-        let (file_a, file_b, file_c) = get_file_args(files.collect());
-        engine.register_table_from_file("A", file_a);
-        engine.register_table_from_file("B", file_b);
-        let query = "SELECT * FROM A UNION SELECT * from B";
-        engine.query(query);
-    }
-    if let Some(files) = matches.values_of("intersect") {
-        let (file_a, file_b, file_c) = get_file_args(files.collect());
-        engine.register_table_from_file("A", file_a);
-        engine.register_table_from_file("B", file_b);
-        let query = "SELECT * FROM A INTERSECT SELECT * from B";
-        engine.query(query);
-    }
-    if let Some(files) = matches.values_of("subtract") {
-        let (file_a, file_b, file_c) = get_file_args(files.collect());
-        engine.subtract_command(file_a, file_b, file_c);
-    }
-    if let Some(files) = matches.values_of("convert") {
-        let files: Vec<&str> = files.collect();
-        let input = files[0];
-        let output = files[1];
-        engine.register_table_from_file("A", input);
-        let query = "SELECT * FROM A";
-        let resources = engine.query_resource(query);
-        save_resource_file(output, resources);
-    }
-    if let Some(files) = matches.values_of("print") {
-        let files: Vec<&str> = files.collect();
-        let file_a = files[0];
-        engine.register_table_from_file("A", file_a);
-        let query = "SELECT * FROM A";
-        engine.query(query);
+
+    match run(&matches, config) {
+        Ok(()) => { return }
+        Err(e) => { println!("{}", e)}
     }
 }

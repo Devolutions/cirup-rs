@@ -1,0 +1,12 @@
+[vcs]
+plugin = "git"
+local_path = "/opt/wayk/dev/WaykNow"
+remote_path = "git@bitbucket.org:devolutions/wayknow.git"
+
+[job]
+source_language = "en"
+source_match = "\\.json$"
+source_name_match = "(.+?)(\\.[^.]*$|$)"
+source_dir = "resources/i18n"
+export_dir = "/tmp"
+import_dir = ""

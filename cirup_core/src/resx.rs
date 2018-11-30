@@ -3,7 +3,7 @@ extern crate treexml;
 use treexml::{Document, Element};
 
 use Resource;
-use error::CirupError;
+use std::error::Error;
 use file::{FileFormat, FormatType};
 use file::{load_string_from_file, save_string_to_file};
 
@@ -16,7 +16,7 @@ impl FileFormat for ResxFileFormat {
     const EXTENSION: &'static str = "resx";
     const TYPE: FormatType = FormatType::Resx;
 
-    fn parse_from_str(&self, text: &str) -> Vec<Resource> {
+    fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<Error>> {
         let doc = Document::parse(text.as_bytes()).unwrap();
         let root = doc.root.unwrap();
 
@@ -31,20 +31,20 @@ impl FileFormat for ResxFileFormat {
             resources.push(resource);
         }
 
-        resources
+        Ok(resources)
     }
 
-    fn parse_from_file(&self, filename: &str) -> Result<Vec<Resource>, CirupError> {
+    fn parse_from_file(&self, filename: &str) -> Result<Vec<Resource>, Box<Error>> {
         let text = load_string_from_file(filename)?;
-        Ok(self.parse_from_str(text.as_ref()))
+        self.parse_from_str(text.as_ref())
     }
 
-    fn write_to_str(&self, resources: Vec<Resource>) -> String {
+    fn write_to_str(&self, resources: &Vec<Resource>) -> String {
         let mut root = Element::new("root");
 
         for resource in resources {
             let mut data = Element::new("data");
-            data.attributes.insert("name".to_string(), resource.name);
+            data.attributes.insert("name".to_string(), resource.name.to_string());
             data.attributes.insert("xml:space".to_string(), "preserve".to_string());
             let mut value = Element::new("value");
             value.text = Some(resource.value.to_string());
@@ -61,7 +61,7 @@ impl FileFormat for ResxFileFormat {
         doc.to_string()
     }
 
-    fn write_to_file(&self, filename: &str, resources: Vec<Resource>) {
+    fn write_to_file(&self, filename: &str, resources: &Vec<Resource>) {
         let text = self.write_to_str(resources);
         save_string_to_file(filename, text.as_str());
     }
@@ -86,7 +86,7 @@ fn test_resx_parse() {
 
     let file_format = ResxFileFormat { };
 
-    let resources = file_format.parse_from_str(&text);
+    let resources = file_format.parse_from_str(&text).unwrap();
 
     let resource = resources.get(0).unwrap();
     assert_eq!(resource.name, "lblBoat");
@@ -125,7 +125,7 @@ fn test_resx_write() {
   </data>
 </root>"#;
 
-    let actual_text = file_format.write_to_str(resources);
+    let actual_text = file_format.write_to_str(&resources);
     //println!("{}", actual_text);
     //println!("{}", expected_text);
     assert_eq!(actual_text, expected_text);

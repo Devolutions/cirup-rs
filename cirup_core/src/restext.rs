@@ -5,7 +5,7 @@ use std::fs;
 use std::io::prelude::*;
 
 use Resource;
-use error::CirupError;
+use std::error::Error;
 use file::{FileFormat, FormatType};
 use file::{load_string_from_file};
 
@@ -43,7 +43,7 @@ impl FileFormat for RestextFileFormat {
     const EXTENSION: &'static str = "restext";
     const TYPE: FormatType = FormatType::Restext;
 
-    fn parse_from_str(&self, text: &str) -> Vec<Resource> {
+    fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<Error>> {
         let mut resources: Vec<Resource> = Vec::new();
 
         for line in text.lines() {
@@ -56,15 +56,15 @@ impl FileFormat for RestextFileFormat {
             }
         }
 
-        resources
+        Ok(resources)
     }
 
-    fn parse_from_file(&self, filename: &str) -> Result<Vec<Resource>, CirupError> {
+    fn parse_from_file(&self, filename: &str) -> Result<Vec<Resource>, Box<Error>> {
         let text = load_string_from_file(filename)?;
-        Ok(self.parse_from_str(text.as_ref()))
+        self.parse_from_str(text.as_ref())
     }
 
-    fn write_to_str(&self, resources: Vec<Resource>) -> String {
+    fn write_to_str(&self, resources: &Vec<Resource>) -> String {
         let mut output = String::new();
 
         for resource in resources {
@@ -76,7 +76,7 @@ impl FileFormat for RestextFileFormat {
         output
     }
 
-    fn write_to_file(&self, filename: &str, resources: Vec<Resource>) {
+    fn write_to_file(&self, filename: &str, resources: &Vec<Resource>) {
         let bom: [u8; 3] = [0xEF, 0xBB, 0xBF];
         let text = self.write_to_str(resources);
         let mut file = fs::File::create(filename).unwrap();
@@ -94,7 +94,7 @@ lblDogs=Who let the dogs out?\r\n";
 
     let file_format = RestextFileFormat { };
 
-    let resources = file_format.parse_from_str(&text);
+    let resources = file_format.parse_from_str(&text).unwrap();
 
     let resource = resources.get(0).unwrap();
     assert_eq!(resource.name, "lblBoat");
@@ -125,7 +125,7 @@ fn test_restext_write() {
 lblYolo=You only live once\r\n\
 lblDogs=Who let the dogs out?\r\n";
 
-    let actual_text = file_format.write_to_str(resources);
+    let actual_text = file_format.write_to_str(&resources);
     println!("{}", actual_text);
     println!("{}", expected_text);
     assert_eq!(actual_text, expected_text);
