@@ -13,6 +13,7 @@ args:
             short: old
             takes_value: true
             global: true
+            help: a git hash specifying the old commit
         - new_commit:
             long: new-commit
             short: new
@@ -20,16 +21,20 @@ args:
             requires: 
                 - old_commit
             global: true
+            help: a git hash specifying the new commit
 subcommands:
     - pull:
+        about: "generate translations for all languages into working_dir"
     - push:
+        about: "merge translations from working_dir back into source control. [config] is required."
         args:
             - force:
                 long: force
                 short: F
                 takes_value: false
+                help: "force the translations to be merged, even if they seem to match the source language"
     - vcs-log:
-        about: Some helpful hints!
+        about: "show the version control history of the source language. [config] is required."
         args:
             - format:
                 long: format
@@ -37,7 +42,9 @@ subcommands:
                 takes_value: true
                 default_value: oneline
     - vcs-diff:
+        about: "diff two commits of the source language. [config] is required. [old-commit] is required."
     - file-print:
+        about: read [file] and output its contents
         args:
             - file:
                 index: 1
@@ -47,6 +54,8 @@ subcommands:
                 index: 2
                 takes_value: true
     - file-convert:
+        about: "convert [file] to another type. 
+        possible extensions are .json, .resx and .restext"
         args:
             - file:
                 index: 1
@@ -57,6 +66,8 @@ subcommands:
                 takes_value: true
                 required: true
     - file-diff:
+        about: "output keys that have values in [file1] but not in [file2]. 
+        useful for finding missing translations."
         args:
             - file1:
                 index: 1
@@ -73,7 +84,10 @@ subcommands:
                 long: show-changes
                 short: C
                 takes_value: false
+                help: "additionally print keys that have values in [file2] but that do not match the values in [file1]. 
+                this is useful for finding update translations when comparing two versions of the same language."
     - file-merge:
+        about: merges the values from [file1] and [file2]
         args:
             - file1:
                 index: 1
@@ -87,6 +101,7 @@ subcommands:
                 index: 3
                 takes_value: true
     - file-intersect:
+        about: output the intersection of values from [file1] and [file2]
         args:
             - file1:
                 index: 1
@@ -100,6 +115,7 @@ subcommands:
                 index: 3
                 takes_value: true
     - file-subtract:
+        about: outputs values from [file1] that do not exist in [file2]
         args:
             - file1:
                 index: 1
