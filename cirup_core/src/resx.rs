@@ -39,12 +39,12 @@ impl FileFormat for ResxFileFormat {
         self.parse_from_str(text.as_ref())
     }
 
-    fn write_to_str(&self, resources: Vec<Resource>) -> String {
+    fn write_to_str(&self, resources: &Vec<Resource>) -> String {
         let mut root = Element::new("root");
 
         for resource in resources {
             let mut data = Element::new("data");
-            data.attributes.insert("name".to_string(), resource.name);
+            data.attributes.insert("name".to_string(), resource.name.to_string());
             data.attributes.insert("xml:space".to_string(), "preserve".to_string());
             let mut value = Element::new("value");
             value.text = Some(resource.value.to_string());
@@ -61,7 +61,7 @@ impl FileFormat for ResxFileFormat {
         doc.to_string()
     }
 
-    fn write_to_file(&self, filename: &str, resources: Vec<Resource>) {
+    fn write_to_file(&self, filename: &str, resources: &Vec<Resource>) {
         let text = self.write_to_str(resources);
         save_string_to_file(filename, text.as_str());
     }
@@ -125,7 +125,7 @@ fn test_resx_write() {
   </data>
 </root>"#;
 
-    let actual_text = file_format.write_to_str(resources);
+    let actual_text = file_format.write_to_str(&resources);
     //println!("{}", actual_text);
     //println!("{}", expected_text);
     assert_eq!(actual_text, expected_text);

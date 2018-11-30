@@ -12,45 +12,45 @@ use cirup_core::query;
 use cirup_core::sync::Sync;
 use cirup_core::vcs::Vcs;
 
-fn print(input: &str) {
+fn print(input: &str, out_file: Option<&str>) {
     let query = query::query_print(input);
-    query.run(None);
+    query.run_interactive(out_file);
 }
 
 fn diff(file_one: &str, file_two: &str, out_file: Option<&str>) {
     let query = query::query_diff(file_one, file_two);
-    query.run(out_file);
+    query.run_interactive(out_file);
 }
 
 fn change(file_one: &str, file_two: &str, out_file: Option<&str>) {
     let query = query::query_change(file_one, file_two);
-    query.run(out_file);
+    query.run_interactive(out_file);
 }
 
 fn merge(file_one: &str, file_two: &str, out_file: Option<&str>) {
     let query = query::query_merge(file_one, file_two);
-    query.run(out_file);
+    query.run_interactive(out_file);
 }
 
 fn intersect(file_one: &str, file_two: &str, out_file: Option<&str>) {
     let query = query::query_intersect(file_one, file_two);
-    query.run(out_file);
+    query.run_interactive(out_file);
 }
 
 fn subtract(file_one: &str, file_two: &str, out_file: Option<&str>) {
     let query = query::query_subtract(file_one, file_two);
-    query.run(out_file);
+    query.run_interactive(out_file);
 }
 
 fn convert(file_one: &str, out_file: &str) {
     let query = query::query_convert(file_one);
-    query.run(Some(out_file));
+    query.run_interactive(Some(out_file));
 }
 
 fn run(matches: &clap::ArgMatches, config: Option<Config>) -> Result<(), Box<Error>> {
     match matches.subcommand() {
         ("file-print", Some(args)) => { 
-            print(args.value_of("file").unwrap());
+            print(args.value_of("file").unwrap(), args.value_of("output"));
             Ok(())
         },
         ("file-diff", Some(args)) => { 
@@ -83,6 +83,8 @@ fn run(matches: &clap::ArgMatches, config: Option<Config>) -> Result<(), Box<Err
                     let sync = Sync::new(&c)?;
                     let vcs = Vcs::new(&c)?;
 
+                    println!("source language is {:?}", sync.source_language_path());
+
                     vcs.pull()?;  
                     vcs.log(
                         &sync.source_language_path().to_string_lossy(), 
@@ -102,6 +104,8 @@ fn run(matches: &clap::ArgMatches, config: Option<Config>) -> Result<(), Box<Err
                     let sync = Sync::new(&c)?;
                     let vcs = Vcs::new(&c)?;
 
+                    println!("source language is {:?}", sync.source_language_path());
+
                     vcs.pull()?;  
                     vcs.diff(
                         &sync.source_language_path().to_string_lossy(), 
@@ -118,6 +122,17 @@ fn run(matches: &clap::ArgMatches, config: Option<Config>) -> Result<(), Box<Err
                 Some(c) => {
                     let sync = Sync::new(&c)?;
                     sync.pull(args.value_of("old_commit"), args.value_of("new_commit"))?;
+
+                    Ok(())
+                },
+                None => { Err("configuration file required")? }
+            }
+        },
+        ("push", Some(args)) => {
+            match config {
+                Some(c) => {
+                    let sync = Sync::new(&c)?;
+                    sync.push(args.is_present("force"))?;
 
                     Ok(())
                 },

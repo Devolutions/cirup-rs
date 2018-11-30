@@ -23,8 +23,7 @@ pub struct Job {
     pub source_match: String,
     pub source_name_match: String,
     pub source_dir: String,
-    pub export_dir: String,
-    pub import_dir: String
+    pub working_dir: String,
 }
 
 impl Config {
@@ -59,8 +58,7 @@ fn config_write() {
             source_match: "\\.json$".to_string(),
             source_name_match: "(.+?)(\\.[^.]*$|$)".to_string(),
             source_dir: "xxx".to_string(),
-            export_dir: "xxx".to_string(),
-            import_dir: "xxx".to_string(),
+            working_dir: "xxx".to_string(),
         },
     };
 

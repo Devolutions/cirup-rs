@@ -22,6 +22,12 @@ args:
             global: true
 subcommands:
     - pull:
+    - push:
+        args:
+            - force:
+                long: force
+                short: F
+                takes_value: false
     - vcs-log:
         about: Some helpful hints!
         args:

@@ -26,8 +26,8 @@ pub trait FileFormat {
     const TYPE: FormatType;
     fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<Error>>;
     fn parse_from_file(&self, filename: &str) -> Result<Vec<Resource>, Box<Error>>;
-    fn write_to_str(&self, resources: Vec<Resource>) -> String;
-    fn write_to_file(&self, filename: &str, resources: Vec<Resource>);
+    fn write_to_str(&self, resources: &Vec<Resource>) -> String;
+    fn write_to_file(&self, filename: &str, resources: &Vec<Resource>);
 }
 
 pub fn get_format_type_from_extension(extension: &str) -> FormatType {
@@ -104,7 +104,7 @@ pub fn load_resource_file(filename: &str) -> Result<Vec<Resource>, Box<Error>> {
     }
 }
 
-pub fn save_resource_file(filename: &str, resources: Vec<Resource>) {
+pub fn save_resource_file(filename: &str, resources: &Vec<Resource>) {
     let path = Path::new(filename);
     let extension = path.extension().unwrap().to_str().unwrap();
     match extension {

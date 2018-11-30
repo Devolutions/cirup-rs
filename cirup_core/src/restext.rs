@@ -64,7 +64,7 @@ impl FileFormat for RestextFileFormat {
         self.parse_from_str(text.as_ref())
     }
 
-    fn write_to_str(&self, resources: Vec<Resource>) -> String {
+    fn write_to_str(&self, resources: &Vec<Resource>) -> String {
         let mut output = String::new();
 
         for resource in resources {
@@ -76,7 +76,7 @@ impl FileFormat for RestextFileFormat {
         output
     }
 
-    fn write_to_file(&self, filename: &str, resources: Vec<Resource>) {
+    fn write_to_file(&self, filename: &str, resources: &Vec<Resource>) {
         let bom: [u8; 3] = [0xEF, 0xBB, 0xBF];
         let text = self.write_to_str(resources);
         let mut file = fs::File::create(filename).unwrap();
@@ -125,7 +125,7 @@ fn test_restext_write() {
 lblYolo=You only live once\r\n\
 lblDogs=Who let the dogs out?\r\n";
 
-    let actual_text = file_format.write_to_str(resources);
+    let actual_text = file_format.write_to_str(&resources);
     println!("{}", actual_text);
     println!("{}", expected_text);
     assert_eq!(actual_text, expected_text);

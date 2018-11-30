@@ -17,16 +17,16 @@ pub struct Sync {
     languages: HashMap<String, PathBuf>,
     source_language: String,
     source_path: String,
-    export_dir: String,
+    working_dir: String,
+    match_rex: Regex,
+    lang_rex: Regex,
 }
 
 fn find_languages(
     source_dir: &PathBuf, 
-    match_regex: &str, 
-    lang_regex: &str) 
+    match_regex: &Regex, 
+    lang_regex: &Regex) 
     -> Result<HashMap<String, PathBuf>, Box<Error>> {
-    let match_regex = Regex::new(match_regex)?;
-    let lang_regex = Regex::new(lang_regex)?;
     let mut languages: HashMap<String, PathBuf> = HashMap::new();
 
     for entry in fs::read_dir(&source_dir)? {
@@ -58,19 +58,16 @@ impl Sync {
             Err(format!("source_dir {:?} does not exist or not a directory", &source_dir))?;
         }
 
-        let export_dir = Path::new(&config.job.export_dir);
+        let working_dir = Path::new(&config.job.working_dir);
 
-        if !export_dir.is_dir() {
-            fs::create_dir_all(export_dir)?;
+        if !working_dir.is_dir() {
+            fs::create_dir_all(working_dir)?;
         }
 
-        let import_dir = Path::new(&config.job.import_dir);
+        let match_rex = Regex::new(&config.job.source_match)?;
+        let lang_rex = Regex::new(&config.job.source_name_match)?;
 
-        if !import_dir.is_dir() {
-            fs::create_dir_all(import_dir)?;
-        }
-
-        let languages = find_languages(&source_dir, &config.job.source_match, &config.job.source_name_match)?;
+        let languages = find_languages(&source_dir, &match_rex, &lang_rex)?;
 
         if languages.is_empty() {
             Err(format!("source_dir {:?} doesn't contain any languages", &source_dir))?;
@@ -86,7 +83,9 @@ impl Sync {
             languages: languages,
             source_language: config.job.source_language.to_string(),
             source_path: config.job.source_dir.to_string(),
-            export_dir: config.job.export_dir.to_string(),
+            working_dir: config.job.working_dir.to_string(),
+            match_rex: match_rex,
+            lang_rex: lang_rex,
         };
 
         Ok(sync)
@@ -100,8 +99,61 @@ impl Sync {
         self.languages.get(&self.source_language).unwrap()
     } 
 
-    pub fn push(&self) -> Result<(), Box<Error>> {
-        unimplemented!();
+    pub fn push(&self, force: bool) -> Result<(), Box<Error>> {
+        println!("starting push...");
+
+        let source_language_path = self.source_language_path();
+        let source_language_filename = source_language_path.file_name().unwrap();
+        let source_path = self.vcs_relative_path(source_language_filename);
+        let out_path = Path::new(&self.working_dir).join(source_language_filename);
+
+        // Grab the HEAD source language for validation
+        self.vcs.show(&source_path.to_string_lossy(), None, &out_path.to_string_lossy())?;
+
+        println!("looking for translations in {}", &self.working_dir);
+
+        let translations = find_languages(&Path::new(&self.working_dir).to_path_buf(), 
+            &self.match_rex, &self.lang_rex)?;
+
+        if translations.is_empty() {
+            Err(format!("working_dir {:?} doesn't contain any translations", &self.working_dir))?;
+        }
+
+        println!("found {} translations", translations.keys().count());
+
+        for (language, path) in &translations {
+            println!("processing translation: {}", language);
+
+            if language != &self.source_language {
+                let query_string = r"
+                    SELECT
+                        A.key, A.val
+                    FROM A
+                    INNER JOIN B on (A.key = B.key) and (A.val = B.val)";
+                let query = query::CirupQuery::new(query_string, &source_language_path.to_string_lossy(), 
+                    Some(&path.to_string_lossy()));
+
+                if !query.run().is_empty() && !force {
+                    Err(format!(r"translation {} contains untranslated strings. 
+                    translate all strings or use use the force option.", language))?;
+                }
+            }
+
+            match self.languages.get(language) {
+                Some(vcs_language_path) => {
+                    println!("merging {:?} into {:?}", path, vcs_language_path);
+                    let query = query::query_merge(&vcs_language_path.to_string_lossy(), &path.to_string_lossy());
+                    query.run_interactive(Some(&vcs_language_path.to_string_lossy()));
+                },
+                None => {
+                    println!("no source language for translation {}", language);
+                },
+            }
+        }
+
+        println!("push complete");
+
+        Ok(())
     }
 
 /*
@@ -118,11 +170,13 @@ If an old commit is specified:
         old_commit: Option<&str>, 
         new_commit: Option<&str>) 
         -> Result<(), Box<Error>> {
+        println!("starting pull...");
+
         let source_language_path = self.source_language_path();
         let source_language_filename = source_language_path.file_name().unwrap();
         let temp_dir = tempdir()?;
         let source_path = self.vcs_relative_path(source_language_filename);
-        let out_path = Path::new(&self.export_dir).join(source_language_filename);
+        let out_path = Path::new(&self.working_dir).join(source_language_filename);
 
         if old_commit.is_none() {
             // Grab the HEAD source language and use it as our source
@@ -143,13 +197,15 @@ If an old commit is specified:
             self.vcs.show(&source_path.to_string_lossy(), new_commit, &new_path.to_string_lossy())?;
 
             let query = query::query_change(&new_path.to_string_lossy(), &old_path.to_string_lossy());
-            query.run(Some(&out_path.to_string_lossy()));
+            query.run_interactive(Some(&out_path.to_string_lossy()));
         }
 
         for (language, path) in &self.languages {
             if language == &self.source_language {
                 continue
             }
+
+            println!("processing translation: {}", language);
 
             let file_name = format!("{}.{}",
                 if new_commit.is_some() { new_commit.unwrap() } else { "HEAD"},
@@ -160,7 +216,7 @@ If an old commit is specified:
             let target_path = self.vcs_relative_path(target_language_filename);
             self.vcs.show(&target_path.to_string_lossy(), new_commit, &file_path.to_string_lossy())?;
 
-            let target_out_path = Path::new(&self.export_dir).join(target_language_filename);
+            let target_out_path = Path::new(&self.working_dir).join(target_language_filename);
 
             let query : query::CirupQuery;
             
@@ -178,8 +234,12 @@ If an old commit is specified:
                 query = query::CirupQuery::new(query_string, &out_path.to_string_lossy(), Some(&file_path.to_string_lossy()));
             }
             
-            query.run(Some(&target_out_path.to_string_lossy()));
+            println!("creating translation in {:?}", target_out_path);
+
+            query.run_interactive(Some(&target_out_path.to_string_lossy()));
         }
+
+        println!("pull complete");
 
         Ok(())
     }

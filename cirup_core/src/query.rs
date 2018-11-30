@@ -169,13 +169,9 @@ const CHANGE_QUERY : &str = r"
         LEFT OUTER JOIN B ON A.key = B.key 
         WHERE (B.val IS NULL) OR (A.val <> B.val)";
 const MERGE_QUERY : &str = r"
-        SELECT 
-            A.key,
-            (CASE WHEN B.val IS NOT NULL
-                  THEN B.val
-                  ELSE A.val END) as val
-        FROM A
-        LEFT OUTER JOIN B on A.key = B.key";
+        SELECT * FROM A LEFT OUTER JOIN B ON A.key = B.key
+        UNION
+        SELECT * FROM B LEFT OUTER JOIN A ON A.key = B.key";
 const INTERSECT_QUERY : &str = r"
         SELECT * FROM A 
         INTERSECT 
@@ -229,11 +225,15 @@ impl CirupQuery {
         }
     }
 
-    pub fn run(&self, out_file: Option<&str>) {
-        let resources = self.engine.query_resource(&self.query);
+    pub fn run(&self) -> Vec<Resource> {
+        return self.engine.query_resource(&self.query);
+    }
+
+    pub fn run_interactive(&self, out_file: Option<&str>) {
+        let resources = self.run();
 
         if out_file.is_some() {
-            save_resource_file(out_file.unwrap(), resources);
+            save_resource_file(out_file.unwrap(), &resources);
         } else {
             print_resources_pretty(&resources);
         }

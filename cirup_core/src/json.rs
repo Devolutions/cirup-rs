@@ -63,7 +63,7 @@ impl FileFormat for JsonFileFormat {
         self.parse_from_str(text.as_ref())
     }
 
-    fn write_to_str(&self, resources: Vec<Resource>) -> String {
+    fn write_to_str(&self, resources: &Vec<Resource>) -> String {
         let mut root_map: Map<String,Value> = Map::new();
 
         for resource in resources {
@@ -73,7 +73,7 @@ impl FileFormat for JsonFileFormat {
         json_to_string_pretty(&root_map)
     }
 
-    fn write_to_file(&self, filename: &str, resources: Vec<Resource>) {
+    fn write_to_file(&self, filename: &str, resources: &Vec<Resource>) {
         let text = self.write_to_str(resources);
         save_string_to_file(filename, text.as_str());
     }
@@ -156,7 +156,7 @@ fn test_json_write() {
     }
 }"#;
 
-    let actual_text = file_format.write_to_str(resources);
+    let actual_text = file_format.write_to_str(&resources);
     //println!("{}", actual_text);
     //println!("{}", expected_text);
     assert_eq!(actual_text, expected_text);
