@@ -48,6 +48,9 @@ fn find_languages(
 
 impl Sync {
     pub fn new(config: &Config) -> Result<Self, Box<Error>> {
+        let vcs = Vcs::new(config)?;
+        vcs.pull()?;
+
          let source_dir = Path::new(&config.vcs.local_path)
             .join(config.job.source_dir.to_string());
 
@@ -78,9 +81,6 @@ impl Sync {
                 &source_dir, &config.job.source_language))?;
         }
 
-        let vcs = Vcs::new(config)?;
-        vcs.pull()?;
-
         let sync = Sync {
             vcs: vcs,
             languages: languages,
@@ -104,6 +104,15 @@ impl Sync {
         unimplemented!();
     }
 
+/*
+If no old commit is specified:
+    diff the source language with the other languages
+    generate an output file for every target language, with the missing translations
+If an old commit is specified:
+    diff the changes between the old and new version of the source language (new and updated strings)
+    generate an output file for every target language, with missing missing translations, 
+    and translations (potentially) needing an update
+*/
     pub fn pull(
         &self, 
         old_commit: Option<&str>, 
@@ -133,8 +142,7 @@ impl Sync {
             self.vcs.show(&source_path.to_string_lossy(), old_commit, &old_path.to_string_lossy())?;
             self.vcs.show(&source_path.to_string_lossy(), new_commit, &new_path.to_string_lossy())?;
 
-            // TODO: is the the correct comparison order?
-            let query = query::query_change(&old_path.to_string_lossy(), &new_path.to_string_lossy());
+            let query = query::query_change(&new_path.to_string_lossy(), &old_path.to_string_lossy());
             query.run(Some(&out_path.to_string_lossy()));
         }
 
@@ -154,7 +162,22 @@ impl Sync {
 
             let target_out_path = Path::new(&self.export_dir).join(target_language_filename);
 
-            let query = query::query_diff(&out_path.to_string_lossy(), &target_path.to_string_lossy());
+            let query : query::CirupQuery;
+            
+            if old_commit.is_none() {
+                query = query::query_diff(&out_path.to_string_lossy(), &file_path.to_string_lossy());
+            } else {
+                let query_string = r"
+                    SELECT
+                        A.key,
+                        (CASE WHEN B.val IS NOT NULL
+                         THEN B.val
+                         ELSE A.val END)
+                    FROM A
+                    LEFT OUTER JOIN B on A.key = B.key";
+                query = query::CirupQuery::new(query_string, &out_path.to_string_lossy(), Some(&file_path.to_string_lossy()));
+            }
+            
             query.run(Some(&target_out_path.to_string_lossy()));
         }
 
