@@ -10,7 +10,7 @@ use clap::App;
 use cirup_core::config::Config;
 use cirup_core::query;
 use cirup_core::sync::Sync;
-use cirup_core::vcs::Vcs;
+use cirup_core::vcs;
 
 fn print(input: &str, out_file: Option<&str>) {
     let query = query::query_print(input);
@@ -81,7 +81,7 @@ fn run(matches: &clap::ArgMatches, config: Option<Config>) -> Result<(), Box<Err
             match config {
                 Some(c) => {
                     let sync = Sync::new(&c)?;
-                    let vcs = Vcs::new(&c)?;
+                    let vcs = vcs::new(&c)?;
 
                     println!("source language is {:?}", sync.source_language_path());
 
@@ -102,7 +102,7 @@ fn run(matches: &clap::ArgMatches, config: Option<Config>) -> Result<(), Box<Err
             match config {
                 Some(c) => {
                     let sync = Sync::new(&c)?;
-                    let vcs = Vcs::new(&c)?;
+                    let vcs = vcs::new(&c)?;
 
                     println!("source language is {:?}", sync.source_language_path());
 

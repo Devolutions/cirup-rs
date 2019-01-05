@@ -1,3 +1,4 @@
+use std::boxed::Box;
 use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsStr;
@@ -10,10 +11,11 @@ use tempfile::tempdir;
 
 use config::Config;
 use query;
+use vcs;
 use vcs::Vcs;
 
 pub struct Sync {
-    vcs: Vcs,
+    vcs: Box<Vcs>,
     languages: HashMap<String, PathBuf>,
     source_language: String,
     source_path: String,
@@ -48,7 +50,7 @@ fn find_languages(
 
 impl Sync {
     pub fn new(config: &Config) -> Result<Self, Box<Error>> {
-        let vcs = Vcs::new(config)?;
+        let vcs = vcs::new(config)?;
         vcs.pull()?;
 
          let source_dir = Path::new(&config.vcs.local_path)
