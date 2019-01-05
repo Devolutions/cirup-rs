@@ -11,13 +11,22 @@ pub struct ResxFileFormat {
 
 }
 
+fn without_bom(text: &str) -> &[u8] {
+       if text.starts_with("\u{feff}") {
+            return &text.as_bytes()[3..];
+        }; 
+
+        return text.as_bytes();
+}
+
 impl FileFormat for ResxFileFormat {
 
     const EXTENSION: &'static str = "resx";
     const TYPE: FormatType = FormatType::Resx;
 
     fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<Error>> {
-        let doc = Document::parse(text.as_bytes()).unwrap();
+        let bytes = without_bom(text);
+        let doc = Document::parse(bytes).unwrap();
         let root = doc.root.unwrap();
 
         let mut resources: Vec<Resource> = Vec::new();
@@ -26,7 +35,7 @@ impl FileFormat for ResxFileFormat {
         for data in children {
             let data_name = data.attributes.get(&"name".to_owned()).unwrap();
             let value = data.find_child(|tag| tag.name == "value").unwrap().clone();
-            let data_value = value.text.unwrap().clone();
+            let data_value = value.text.unwrap_or_default().clone();
             let resource = Resource::new(data_name, data_value.as_ref());
             resources.push(resource);
         }
