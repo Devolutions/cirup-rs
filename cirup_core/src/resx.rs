@@ -25,19 +25,22 @@ impl FileFormat for ResxFileFormat {
     const TYPE: FormatType = FormatType::Resx;
 
     fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<Error>> {
-        let bytes = without_bom(text);
-        let doc = Document::parse(bytes).unwrap();
-        let root = doc.root.unwrap();
-
         let mut resources: Vec<Resource> = Vec::new();
-        let children: Vec<&treexml::Element> = root.filter_children(|t| t.name == "data").collect();
+        let bytes = without_bom(text);
 
-        for data in children {
-            let data_name = data.attributes.get(&"name".to_owned()).unwrap();
-            let value = data.find_child(|tag| tag.name == "value").unwrap().clone();
-            let data_value = value.text.unwrap_or_default().clone();
-            let resource = Resource::new(data_name, data_value.as_ref());
-            resources.push(resource);
+        if bytes.len() > 0 {
+            let doc = Document::parse(bytes).unwrap();
+            let root = doc.root.unwrap();
+
+            let children: Vec<&treexml::Element> = root.filter_children(|t| t.name == "data").collect();
+
+            for data in children {
+                let data_name = data.attributes.get(&"name".to_owned()).unwrap();
+                let value = data.find_child(|tag| tag.name == "value").unwrap().clone();
+                let data_value = value.text.unwrap_or_default().clone();
+                let resource = Resource::new(data_name, data_value.as_ref());
+                resources.push(resource);
+            }
         }
 
         Ok(resources)
