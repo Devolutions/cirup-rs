@@ -1,11 +1,15 @@
 #[macro_use]
 extern crate clap;
 extern crate cirup_core;
+#[macro_use]
+extern crate log;
+extern crate env_logger;
 
 use std::error::Error;
 use std::path::Path;
 
 use clap::App;
+use env_logger::{Builder, Env};
 
 use cirup_core::config::Config;
 use cirup_core::query;
@@ -147,6 +151,15 @@ fn main() {
     let yaml = load_yaml!("cli.yml");
     let app = App::from_yaml(yaml);
     let matches = app.version(crate_version!()).get_matches();
+
+    let min_log_level = match matches.occurrences_of("verbose") {
+        0 => "info",
+        1 => "debug",
+        2 | _ => "trace",
+    };
+
+    let mut builder = Builder::from_env(Env::default().default_filter_or(min_log_level));
+    builder.init();
 
     let mut config : Option<Config> = None;
 

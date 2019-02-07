@@ -2,6 +2,10 @@ name: cirup
 author: Marc-André Moreau <marcandre.moreau@gmail.com>
 about: a translation continuous integration tool
 args:
+        - verbose:
+            short: v
+            multiple: true
+            help: Sets the level of verbosity
         - config:
             long: config
             short: c
