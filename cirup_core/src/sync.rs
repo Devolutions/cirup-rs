@@ -15,7 +15,7 @@ use vcs;
 use vcs::Vcs;
 
 pub struct Sync {
-    vcs: Box<Vcs>,
+    pub vcs: Box<Vcs>,
     languages: HashMap<String, PathBuf>,
     source_language: String,
     source_path: String,
@@ -66,18 +66,21 @@ impl Sync {
             fs::create_dir_all(working_dir)?;
         }
 
-        let match_rex = Regex::new(&config.sync.source_match)?;
-        let lang_rex = Regex::new(&config.sync.source_name_match)?;
+        let match_rex = Regex::new(&config.sync.match_language_file)?;
+        let lang_rex = Regex::new(&config.sync.match_language_name)?;
 
-        let languages = find_languages(&source_dir, &match_rex, &lang_rex)?;
+        let mut languages = find_languages(&source_dir, &match_rex, &lang_rex)?;
 
         if languages.is_empty() {
-            Err(format!("source_dir {:?} doesn't contain any languages", &source_dir))?;
+            Err(format!("couldn't find any language files in {:?}", &source_dir))?;
         }
+
+        languages.retain(|key, _value| {
+            key == &config.sync.source_language || config.sync.target_languages.contains(key)
+        });
         
         if !languages.contains_key(&config.sync.source_language) {
-            Err(format!("source_dir {:?} doesn't contain source language {}", 
-                &source_dir, &config.sync.source_language))?;
+            Err(format!("couldn't find source language file in {:?}", &source_dir))?;
         }
 
         let sync = Sync {

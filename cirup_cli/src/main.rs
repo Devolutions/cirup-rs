@@ -14,7 +14,6 @@ use env_logger::{Builder, Env};
 use cirup_core::config::Config;
 use cirup_core::query;
 use cirup_core::sync::Sync;
-use cirup_core::vcs;
 
 fn print(input: &str, out_file: Option<&str>) {
     let query = query::query_print(input);
@@ -85,12 +84,8 @@ fn run(matches: &clap::ArgMatches, config: Option<Config>) -> Result<(), Box<Err
             match config {
                 Some(c) => {
                     let sync = Sync::new(&c)?;
-                    let vcs = vcs::new(&c)?;
 
-                    println!("source language is {:?}", sync.source_language_path());
-
-                    vcs.pull()?;  
-                    vcs.log(
+                    sync.vcs.log(
                         &sync.source_language_path().to_string_lossy(), 
                         args.value_of("format"), 
                         args.value_of("old_commit"), 
@@ -106,12 +101,8 @@ fn run(matches: &clap::ArgMatches, config: Option<Config>) -> Result<(), Box<Err
             match config {
                 Some(c) => {
                     let sync = Sync::new(&c)?;
-                    let vcs = vcs::new(&c)?;
 
-                    println!("source language is {:?}", sync.source_language_path());
-
-                    vcs.pull()?;  
-                    vcs.diff(
+                    sync.vcs.diff(
                         &sync.source_language_path().to_string_lossy(), 
                         args.value_of("old_commit").unwrap(), 
                         args.value_of("new_commit"), )?;
@@ -166,12 +157,12 @@ fn main() {
     if let Some(config_file) = matches.value_of("config") {
         match Config::new(Path::new(config_file)) {
             Ok(c) => { config = Some(c) },
-            Err(e) => { println!("failed to read config file: {:?}", e) }
+            Err(e) => { error!("unable to read the config file ({})", e) }
         }
     }
 
     match run(&matches, config) {
         Ok(()) => { return }
-        Err(e) => { println!("{}", e)}
+        Err(e) => { error!("an unexpected error occured ({})", e) }
     }
 }

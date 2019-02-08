@@ -5,8 +5,8 @@ remote_path = "git@bitbucket.org:devolutions/wayknow.git"
 
 [job]
 source_language = "en"
-source_match = "\\.json$"
-source_name_match = "(.+?)(\\.[^.]*$|$)"
+match_language_file = "\\.json$"
+match_language_name = "(.+?)(\\.[^.]*$|$)"
 source_dir = "resources/i18n"
 export_dir = "/tmp"
 import_dir = ""

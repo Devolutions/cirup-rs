@@ -5,6 +5,7 @@ args:
         - verbose:
             short: v
             multiple: true
+            global: true
             help: Sets the level of verbosity
         - config:
             long: config
@@ -39,12 +40,6 @@ subcommands:
                 help: "force the translations to be merged, even if they seem to match the source language"
     - vcs-log:
         about: "show the version control history of the source language. [config] is required."
-        args:
-            - format:
-                long: format
-                short: f
-                takes_value: true
-                default_value: oneline
     - vcs-diff:
         about: "diff two commits of the source language. [config] is required. [old-commit] is required."
     - file-print:

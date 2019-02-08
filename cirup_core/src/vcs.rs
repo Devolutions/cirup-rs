@@ -4,12 +4,15 @@ use std::boxed::Box;
 use std::error::Error;
 use std::path::Path;
 
+use regex::Regex;
+
 use ::config;
 use ::shell;
 
 const DEFAULT_BRANCH: &str = "master";
 
 pub trait Vcs {
+    fn init_repo(&self) -> Result<(), Box<Error>>;
     fn pull(&self) -> Result<(), Box<Error>>;
     fn push(&self) -> Result<(), Box<Error>>;
     fn log(
@@ -59,10 +62,19 @@ impl Default for VcsMetadata {
 
 impl VcsMetadata {
     fn run(&self, args: &[&str]) -> Result<(), Box<Error>> {
-        shell::status(&self.executable, Path::new(&self.local_path), args)?; 
+        shell::status(&self.executable, Path::new(&self.local_path), args)?;
 
         Ok(())
     }
+
+    fn output(&self, args: &[&str]) -> Result<String, Box<Error>> {
+        shell::output(&self.executable, Path::new(&self.local_path), args)
+    }
+
+    fn is_repo(&self) -> bool {
+        let path = Path::new(&self.local_path);
+        path.is_dir() && path.join(format!(".{}", self.name)).exists()
+}
 }
 
 pub fn new(config: &config::Config) -> Result<Box<Vcs>, Box<Error>> {
@@ -100,43 +112,36 @@ pub struct Git {
     meta: VcsMetadata,
 }
 
-fn is_git_repo(path: &str) -> bool {
-    let path = Path::new(path);
-    path.is_dir() && path.join(".git").exists()
-}
-
-impl Git {
+impl Vcs for Git {
     fn init_repo(&self) -> Result<(), Box<Error>> {
-        if !is_git_repo(&self.meta.local_path) {
+        if !self.meta.is_repo() {
+            info!("{} does not appear to be a git repository. Cloning...", self.meta.local_path);
             self.meta.run(&["clone", &self.meta.remote_path, "--branch", DEFAULT_BRANCH, &self.meta.local_path])?;
         } else {
-            let git_path = Path::new(&self.meta.local_path).join("git");
+            let git_path = Path::new(&self.meta.local_path).join(".git");
             if git_path.join("rebase-merge").exists() || git_path.join("rebase-apply").exists() {
-                self.meta.run(&["rebase", "--abort"])?;
+                Err(format!("{} appears to have a pending rebase", self.meta.local_path))?;
             }
         }
 
         Ok(())
     }
-}
 
-impl Vcs for Git {
     fn pull(&self) -> Result<(), Box<Error>> {
         self.init_repo()?;
 
-        let repo = format!("origin/{}", DEFAULT_BRANCH);
-
-        // Abandon any local changes
-        self.meta.run(&["reset", "--hard", &repo])?;
-
-        // Remove old conflicting branches
-        self.meta.run(&["remote", "prune", "origin"])?;
+        debug!("vcs pull start");
 
         // Pull changes from remote
         self.meta.run(&["fetch"])?;
 
-        // Reset to remote state
-        self.meta.run(&["reset", "--hard", &repo])?;
+        // Error out if there are conflicts
+        match self.meta.run(&["merge", "--ff-only"]) {
+            Ok(_) => (),
+            Err(_) => Err(format!("{} appears to have conflicts", self.meta.local_path))?
+        }
+
+        debug!("vcs pull end");
 
         Ok(())
     }
@@ -148,12 +153,12 @@ impl Vcs for Git {
     fn log(
         &self, 
         filespec: &str, 
-        format: Option<&str>, 
+        _format: Option<&str>, 
         old_commit: Option<&str>, 
         new_commit: Option<&str>, 
         inclusive: bool) 
         -> Result<(), Box<Error>> {
-        let format = format!("--pretty={}", if format.is_none() { "oneline" } else { format.unwrap() });
+        let format = format!("--pretty=format:%h - %an - %s");
         let commit : String;
 
         if old_commit.is_some() {
@@ -165,7 +170,13 @@ impl Vcs for Git {
             commit = "HEAD".to_string();
         }
 
-        return self.meta.run(&["log", &format, &commit, filespec]);
+        match self.meta.output(&["log", &format, &commit, filespec]) {
+            Ok(output) => {
+                println!("{}", output);
+                Ok(())
+            }
+            Err(e) => Err(e)
+        }
     }
 
     fn diff(
@@ -199,19 +210,69 @@ pub struct Svn {
     meta: VcsMetadata,
 }
 
-impl Svn {
-    fn resolve(&self, mine: bool) -> Result<(), Box<Error>> {
-        let strategy = if mine { "mine-full" } else { "theirs-full" };
-        self.meta.run(&["resolve", &self.meta.local_path, "--accept", strategy, "--recursive", "--non-interactive"])?;
+#[derive(Debug, Deserialize, PartialEq)]
+struct LogEntry {
+    revision: i32,
+    author: String,
+    date: String,
+    msg: String
+}
 
-        Ok(())
+#[derive(Debug, Deserialize, PartialEq)]
+struct Log {
+    #[serde(rename="logentry")]
+    entries: Vec<LogEntry>
+}
+
+impl Svn {
+    fn status_has_conflicts(status: &str) -> Result<bool, Box<Error>> {
+        Ok(Regex::new(r"(?m)^C")?.is_match(status))
     }
 }
 
+#[test]
+    fn test_status_conflicts() {
+        assert_eq!(false, Svn::status_has_conflicts("\
+--- Merging r6429 through r6736 into '.':
+U    UIResources.it.resx
+U    MsgResources.pl.resx").unwrap());
+        assert_eq!(true, Svn::status_has_conflicts("\
+--- Merging r6429 through r6736 into '.':
+U    UIResources.it.resx
+C    MsgResources.pl.resx").unwrap());
+    }
+
 impl Vcs for Svn {
+    fn init_repo(&self) -> Result<(), Box<Error>> {
+        if !self.meta.is_repo() {
+            info!("{} does not appear to be a svn repository. Checking out...", self.meta.local_path);
+            self.meta.run(&["co", &self.meta.remote_path, &self.meta.local_path, "--non-interactive"])?;
+        }
+
+        Ok(())
+    }
+
     fn pull(&self) -> Result<(), Box<Error>> {
-        self.meta.run(&["co", &self.meta.remote_path, &self.meta.local_path, "--force", "--non-interactive"])?;
-        self.resolve(false)?;
+        self.init_repo()?;
+
+        debug!("vcs pull start");
+
+        match shell::output(
+                &self.meta.executable, 
+                Path::new(&self.meta.local_path), 
+                &["merge", "--dry-run", "-r", "BASE:HEAD", "."]) {
+                    Ok(status) => {
+                        match Svn::status_has_conflicts(&status) {
+                            Ok(false) => {
+                                self.meta.run(&["update"])?;
+                            },
+                            _ => warn!("updating repository {} may result in conflicts, skipping update", self.meta.local_path)
+                        }
+                    },
+                    Err(_) => warn!("failed to update repository {}", self.meta.local_path)
+        }
+
+        debug!("vcs pull end");
 
         Ok(())
     }
@@ -233,7 +294,14 @@ impl Vcs for Svn {
                 if old_commit.is_some() { old_commit.unwrap() } else { "1" },
                 if new_commit.is_some() { new_commit.unwrap() } else { "HEAD" });
 
-        return self.meta.run(&["log", "--revision", &commit, filespec]);
+        let xml = self.meta.output(&["log", "--revision", &commit, "--xml", filespec])?;
+        let log: Log = serde_xml_rs::de::from_str(&xml)?;
+
+        for entry in &log.entries {
+            println!("{} - {} - {}", entry.revision, entry.author, entry.msg.lines().nth(0).unwrap());
+        }
+
+        Ok(())
     }
 
     fn diff(

@@ -17,6 +17,8 @@ pub fn status(exe: &str, dir: &Path, args: &[&str]) -> Result<i32, Box<Error>> {
     let status = Command::new(exe)
         .current_dir(dir)
         .args(args)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .status()?;
 
     match status.code() {

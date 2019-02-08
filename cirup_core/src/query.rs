@@ -88,9 +88,9 @@ pub fn execute_query(db: &Connection, query: &str) {
         Err(e) => {
             match e {
                 Error::SqliteFailure(_r, m) => {
-                    if let Some(msg) = m { println!("{}", msg) };
+                    if let Some(msg) = m { error!("{}", msg) };
                 },
-                _ => println!("{:?}", Error::ModuleError(format!("{}", e)))
+                _ => error!("{:?}", Error::ModuleError(format!("{}", e)))
             }
         }
     }

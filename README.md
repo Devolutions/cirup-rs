@@ -2,9 +2,6 @@
 
 A translation continuous integration tool
 
-### warning
-Before data is downloaded, all unversioned files in the working directory are removed, and pending rebase is aborted, so the working directory should not be the one you are doing any development in.
-
 ##### configuration
 A configuration file is required for most operations:
  ```
@@ -20,9 +17,9 @@ remote_path = "git@bitbucket.org:devolutions/wayknow.git"
 # The source language
 source_language = "en"
 # A regex to match your language files
-source_match = "\\.json$"
+match_language_file = "\\.json$"
 # A regex to match the language from the language filename
-source_name_match = "(.+?)(\\.[^.]*$|$)"
+match_language_name = "(.+?)(\\.[^.]*$|$)"
 # The relative path to the language files in the repository
 source_dir = "resources/i18n"
 # The location to export and import translations from
