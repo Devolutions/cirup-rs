@@ -13,6 +13,7 @@ const DEFAULT_BRANCH: &str = "master";
 
 pub trait Vcs {
     fn init_repo(&self) -> Result<(), Box<Error>>;
+    fn current_revision(&self) -> Result<String, Box<Error>>;
     fn pull(&self) -> Result<(), Box<Error>>;
     fn push(&self) -> Result<(), Box<Error>>;
     fn log(
@@ -74,14 +75,15 @@ impl VcsMetadata {
     fn is_repo(&self) -> bool {
         let path = Path::new(&self.local_path);
         path.is_dir() && path.join(format!(".{}", self.name)).exists()
-}
+    }
 }
 
 pub fn new(config: &config::Config) -> Result<Box<Vcs>, Box<Error>> {
     let mut meta = VcsMetadata { 
         local_path: config.vcs.local_path.to_string(), 
         remote_path: config.vcs.remote_path.to_string(),
-        ..Default::default() };
+        ..Default::default() 
+    };
 
     match config.vcs.plugin.as_ref() {
                 vcs_type::GIT => { 
@@ -125,6 +127,10 @@ impl Vcs for Git {
         }
 
         Ok(())
+    }
+
+    fn current_revision(&self) -> Result<String, Box<Error>> {
+        self.meta.output(&["rev-parse", "--short", "HEAD"])
     }
 
     fn pull(&self) -> Result<(), Box<Error>> {
@@ -250,6 +256,10 @@ impl Vcs for Svn {
         }
 
         Ok(())
+    }
+
+    fn current_revision(&self) -> Result<String, Box<Error>> {
+        self.meta.output(&["info", "--show-item", "revision"])
     }
 
     fn pull(&self) -> Result<(), Box<Error>> {

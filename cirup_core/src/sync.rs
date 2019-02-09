@@ -175,7 +175,6 @@ If an old commit is specified:
         old_commit: Option<&str>, 
         new_commit: Option<&str>) 
         -> Result<(), Box<Error>> {
-        println!("starting pull...");
 
         let source_language_path = self.source_language_path();
         let source_language_filename = source_language_path.file_name().unwrap();
@@ -210,8 +209,6 @@ If an old commit is specified:
                 continue
             }
 
-            println!("processing translation: {}", language);
-
             let file_name = format!("{}.{}",
                 if new_commit.is_some() { new_commit.unwrap() } else { "HEAD"},
                 path.file_name().unwrap().to_string_lossy());
@@ -239,12 +236,10 @@ If an old commit is specified:
                 query = query::CirupQuery::new(query_string, &out_path.to_string_lossy(), Some(&file_path.to_string_lossy()));
             }
             
-            println!("creating translation in {:?}", target_out_path);
-
             query.run_interactive(Some(&target_out_path.to_string_lossy()));
-        }
 
-        println!("pull complete");
+            info!("translation file generated: {:?}", target_out_path);
+        }
 
         Ok(())
     }
