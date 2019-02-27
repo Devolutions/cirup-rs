@@ -11,6 +11,7 @@ use tempfile::tempdir;
 
 use config::Config;
 use query;
+use revision::RevisionRange;
 use vcs;
 use vcs::Vcs;
 use utils::*;
@@ -25,124 +26,11 @@ pub struct Sync {
     lang_rex: Regex,
 }
 
-struct LanguageRevision {
-    old_rev: Option<String>,
-    new_rev: Option<String>
-}
-
-impl Default for LanguageRevision {
-    fn default() -> LanguageRevision {
-        LanguageRevision {
-            old_rev: None,
-            new_rev: None,
-        }
-    }
-}
-
-impl PartialEq for LanguageRevision {
-    fn eq(&self, other: &LanguageRevision) -> bool {
-       self.old_rev == other.old_rev && self.new_rev == other.new_rev
-    }
-}
-
-impl Eq for LanguageRevision { }
-
-impl LanguageRevision {
-    fn new<S: Into<String>>(old_rev: Option<S>, new_rev: Option<S>) -> Self {
-        LanguageRevision {
-            old_rev: old_rev.map(|s| s.into()),
-            new_rev: new_rev.map(|s| s.into()),
-        }
-    }
-
-    fn old_rev_as_ref(&self) -> Option<&str> {
-        self.old_rev.as_ref().map(String::as_str)
-    }
-
-    fn new_rev_as_ref(&self) -> Option<&str> {
-        self.new_rev.as_ref().map(String::as_str)
-    }
-
-    fn to_string(&self) -> String {
-        format!("~{}{}~", self.old_rev.as_ref().unwrap_or(&String::default()), 
-            format!("{}{}", 
-            if self.old_rev.is_some() && self.new_rev.is_some() { let x = "-"; x } else { "" },
-            self.new_rev.as_ref().unwrap_or(&String::default())))
-    }
-
-    fn from_string(string: &str) -> LanguageRevision {
-        let mut language_revision = LanguageRevision::default();
-        let split = string.split("-")
-            .take(2)
-            .filter(|x| !x.is_empty())
-            .collect::<Vec<_>>();
-
-        if let Some(y) = split.get(1) {
-            language_revision.new_rev = Some(y.to_string());
-
-            if let Some(x) = split.get(0) {
-                language_revision.old_rev = Some(x.to_string());
-            }
-        }
-        else if let Some(x) = split.get(0) {
-            language_revision.new_rev = Some(x.to_string());
-        }
-
-        language_revision
-    }
-
-    fn append_to_file_name(&self, path: PathBuf) -> Result<PathBuf, Box<Error>> {
-        let rev : String = self.to_string();
-        let file_stem = path.file_stem().unwrap_or(OsStr::new(""));
-        let mut file_name = file_stem.to_os_string();
-
-        if !rev.is_empty() {
-            file_name.push(format!(".{}", rev));
-        }
-
-        if let Some(extension) = path.extension() {
-            file_name.push(".");
-            file_name.push(extension)
-        }
-
-        Ok(path.with_file_name(file_name))
-    }
-
-    fn extract_from_file_name(path: PathBuf) -> (LanguageRevision, PathBuf) {
-        let mut language_revision = LanguageRevision { old_rev: None, new_rev: None };
-        let file_stem = path.file_stem().unwrap_or(OsStr::new(""));
-        let file_name = file_stem.to_string_lossy();
-        let mut split = file_name.split(".")
-            .filter(|x| !x.is_empty())
-            .collect::<Vec<_>>();
-
-        if split.len() > 1 {
-            let revision = split.pop().unwrap();
-
-            if revision.starts_with('~') && revision.ends_with('~') {
-                let trimmed = revision.trim_matches('~');
-                language_revision = LanguageRevision::from_string(trimmed);
-            } else {
-                split.push(revision);
-            }
-        }
-
-        let mut file_name = split.join(".").to_string();
-
-        if let Some(extension) = path.extension() {
-            file_name.push_str(".");
-            file_name.push_str(&extension.to_string_lossy());
-        }
-
-        (language_revision, path.with_file_name(file_name))
-    }
-}
-
 struct LanguageFile {
     path: PathBuf,
     file_name: String,
     file_ext: String,
-    revision: LanguageRevision,
+    revision: RevisionRange,
 }
 
 impl Default for LanguageFile {
@@ -151,7 +39,7 @@ impl Default for LanguageFile {
             path: PathBuf::default(),
             file_name: String::new(),
             file_ext: String::new(),
-            revision: LanguageRevision::default(),
+            revision: RevisionRange::default(),
         }
     }
 }
@@ -167,7 +55,7 @@ impl LanguageFile {
             Some(extension) => extension.to_string(),
             _ => Err(format!("invalid language file {:?}", path_ref))?
         };
-        let (language_revision, path) = LanguageRevision::extract_from_file_name(PathBuf::from(path.as_ref()));
+        let (language_revision, path) = RevisionRange::extract_from_file_name(PathBuf::from(path.as_ref()));
         let file_name = match path.file_name().and_then(OsStr::to_str) {
             Some(file_name) => file_name.to_string(),
             _ => Err(format!("invalid language file {:?}", path_ref))?
@@ -209,7 +97,7 @@ impl Sync {
         let vcs = vcs::new(config)?;
         vcs.pull()?;
 
-         let source_dir = Path::new(&config.vcs.local_path)
+        let source_dir = Path::new(&config.vcs.local_path)
             .join(config.sync.source_dir.to_string());
 
         if !source_dir.is_dir() {
@@ -275,7 +163,7 @@ impl Sync {
         -> Result<(), Box<Error>> {
         let temp_dir = tempdir()?;
         let current_rev = sanitized(&self.vcs.current_revision()?).to_string();
-        let rev = LanguageRevision::new(old_commit, match new_commit {
+        let rev = RevisionRange::new(old_commit, match new_commit {
            Some(new_commit) => Some(new_commit),
            None => Some(&current_rev)
         });
@@ -305,8 +193,8 @@ impl Sync {
         let source_path_vcs = self.vcs_relative_path(&source.file_name);
         let source_path_out = rev.append_to_file_name(Path::new(temp_dir.path()).join(&source.file_name))?;
 
-        let rev_old = LanguageRevision::new(rev.old_rev_as_ref(), None);
-        let rev_new = LanguageRevision::new(None, rev.new_rev_as_ref());
+        let rev_old = RevisionRange::new(rev.old_rev_as_ref(), None);
+        let rev_new = RevisionRange::new(None, rev.new_rev_as_ref());
 
         if old_commit.is_none() {
             // Grab the HEAD source language and use it as our source
@@ -399,7 +287,7 @@ If an old commit is specified:
         -> Result<(), Box<Error>> {
         let temp_dir = tempdir()?;
         let current_rev = sanitized(&self.vcs.current_revision()?).to_string();
-        let rev = LanguageRevision::new(old_commit, match new_commit {
+        let rev = RevisionRange::new(old_commit, match new_commit {
            Some(new_commit) => Some(new_commit),
            None => Some(&current_rev)
         });
@@ -407,8 +295,8 @@ If an old commit is specified:
         let source_path_vcs = self.vcs_relative_path(&source.file_name);
         let source_path_out = rev.append_to_file_name(Path::new(&self.working_dir).join(&source.file_name))?;
 
-        let rev_old = LanguageRevision::new(rev.old_rev_as_ref(), None);
-        let rev_new = LanguageRevision::new(None, rev.new_rev_as_ref());
+        let rev_old = RevisionRange::new(rev.old_rev_as_ref(), None);
+        let rev_new = RevisionRange::new(None, rev.new_rev_as_ref());
 
         if old_commit.is_none() {
             // Grab the HEAD source language and use it as our source
@@ -462,53 +350,4 @@ If an old commit is specified:
 
         Ok(())
     }
-}
-
-#[test]
-fn language_revision_to_string_test() {
-    let mut a = LanguageRevision { old_rev: Some("r123".to_string()), new_rev: Some("r456".to_string()) };
-    assert_eq!(a.to_string(), "r123-r456");
-    a = LanguageRevision { old_rev: Some("r123".to_string()), new_rev: None };
-    assert_eq!(a.to_string(), "r123");
-    a = LanguageRevision { old_rev: Some("r456".to_string()), new_rev: None };
-    assert_eq!(a.to_string(), "r456");
-    a = LanguageRevision { old_rev: None, new_rev: None };
-    assert_eq!(a.to_string(), "");
-}
-
-#[test]
-fn language_revision_from_string_test() {
-    let mut a = LanguageRevision::from_string("r123-r456");
-    assert_eq!(a.old_rev, Some("r123".to_string()));
-    assert_eq!(a.new_rev, Some("r456".to_string()));
-    a = LanguageRevision::from_string("r123");
-    assert_eq!(a.old_rev, None);
-    assert_eq!(a.new_rev, Some("r123".to_string()));
-    a = LanguageRevision::from_string("");
-    assert_eq!(a.old_rev, None);
-    assert_eq!(a.new_rev, None);
-    a = LanguageRevision::from_string("-");
-    assert_eq!(a.old_rev, None);
-    assert_eq!(a.new_rev, None);
-}
-
-#[test]
-fn language_revision_append_to_file_name_test() {
-    let mut p = PathBuf::from("/test/path/myfile.resx");
-    let rev = LanguageRevision { old_rev: Some("r123".to_string()), new_rev: Some("r456".to_string()) };
-    p = rev.append_to_file_name(p).unwrap();
-    assert_eq!(p, PathBuf::from("/test/path/myfile.~r123-r456~.resx"));
-}
-
-#[test]
-
-fn language_revision_extract_from_file_name_test() {
-    let (revision, path) = LanguageRevision::extract_from_file_name(PathBuf::from("/test/path/myfile.~r123-r456~.resx"));
-    assert_eq!(revision.old_rev, Some("r123".to_string()));
-    assert_eq!(revision.new_rev, Some("r456".to_string()));
-    assert_eq!(path, PathBuf::from("/test/path/myfile.resx"));
-    let (revision, path) = LanguageRevision::extract_from_file_name(PathBuf::from("/test/path/myfile.not.a.revision.resx"));
-    assert_eq!(revision.old_rev, None);
-    assert_eq!(revision.new_rev, None);
-    assert_eq!(path, PathBuf::from("/test/path/myfile.not.a.revision.resx"));
 }

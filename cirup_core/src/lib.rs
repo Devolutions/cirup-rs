@@ -21,22 +21,23 @@ extern crate prettytable;
 #[macro_use]
 extern crate lazy_static;
 
-pub mod resource;
+mod resource;
 use resource::Resource;
 
-pub mod error;
-pub mod shell;
+mod error;
+mod shell;
 pub mod config;
 
-pub mod json;
-pub mod resx;
-pub mod restext;
+mod json;
+mod resx;
+mod restext;
 
-pub mod file;
-pub mod vtab;
+mod file;
+mod vtab;
+
 pub mod query;
 
+mod revision;
+mod utils;
 pub mod vcs;
 pub mod sync;
-
-mod utils;
