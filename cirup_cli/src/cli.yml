@@ -33,7 +33,7 @@ args:
             takes_value: false
             global: true
             help: "additionally print keys that have values in [file2] but that do not match the values in [file1]. 
-            this is useful for finding update translations when comparing two versions of the same language."
+            this is useful for finding translations that need updating."
 subcommands:
     - pull:
         about: "generate translations for all languages into working_dir. [config] is required."
