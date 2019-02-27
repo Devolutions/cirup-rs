@@ -169,9 +169,9 @@ const CHANGE_QUERY : &str = r"
         LEFT OUTER JOIN B ON A.key = B.key 
         WHERE (B.val IS NULL) OR (A.val <> B.val)";
 const MERGE_QUERY : &str = r"
-        SELECT * FROM A LEFT OUTER JOIN B ON A.key = B.key
-        UNION
-        SELECT * FROM B LEFT OUTER JOIN A ON A.key = B.key";
+        SELECT A.key, CASE WHEN B.val IS NOT NULL THEN B.val ELSE A.val END
+        FROM A
+        LEFT OUTER JOIN B on A.key = B.key";
 const INTERSECT_QUERY : &str = r"
         SELECT * FROM A 
         INTERSECT 

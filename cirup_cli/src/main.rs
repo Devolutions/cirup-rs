@@ -116,7 +116,7 @@ fn run(matches: &clap::ArgMatches, config: Option<Config>) -> Result<(), Box<Err
             match config {
                 Some(c) => {
                     let sync = Sync::new(&c)?;
-                    sync.pull(args.value_of("old_commit"), args.value_of("new_commit"))?;
+                    sync.pull(args.value_of("old_commit"), args.value_of("new_commit"), args.is_present("show_changes"))?;
 
                     Ok(())
                 },
@@ -127,7 +127,7 @@ fn run(matches: &clap::ArgMatches, config: Option<Config>) -> Result<(), Box<Err
             match config {
                 Some(c) => {
                     let sync = Sync::new(&c)?;
-                    sync.push(args.is_present("force"))?;
+                    sync.push(args.value_of("old_commit"), args.value_of("new_commit"))?;
 
                     Ok(())
                 },
