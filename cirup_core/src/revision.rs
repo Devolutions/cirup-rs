@@ -1,10 +1,11 @@
 use std::error::Error;
 use std::ffi::OsStr;
+use std::fmt;
 use std::path::PathBuf;
 
 pub struct RevisionRange {
-    old_rev: Option<String>,
-    new_rev: Option<String>
+    pub old_rev: Option<String>,
+    pub new_rev: Option<String>
 }
 
 impl Default for RevisionRange {
@@ -23,6 +24,12 @@ impl PartialEq for RevisionRange {
 }
 
 impl Eq for RevisionRange { }
+
+impl fmt::Display for RevisionRange {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
 
 impl RevisionRange {
     pub fn new<S: Into<String>>(old_rev: Option<S>, new_rev: Option<S>) -> Self {

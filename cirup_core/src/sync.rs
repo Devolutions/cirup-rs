@@ -7,7 +7,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use regex::Regex;
-use tempfile::tempdir;
+use tempfile;
 
 use config::Config;
 use query;
@@ -24,6 +24,7 @@ pub struct Sync {
     working_dir: String,
     match_rex: Regex,
     lang_rex: Regex,
+    temp_dir: tempfile::TempDir
 }
 
 struct LanguageFile {
@@ -135,6 +136,7 @@ impl Sync {
             working_dir: config.sync.working_dir.to_string(),
             match_rex: match_rex,
             lang_rex: lang_rex,
+            temp_dir: tempfile::tempdir()?,
         };
 
         Ok(sync)
@@ -156,158 +158,27 @@ impl Sync {
         PathBuf::default()
     } 
 
-    pub fn push(
-        &self, 
-        old_commit: Option<&str>, 
-        new_commit: Option<&str>) 
-        -> Result<(), Box<Error>> {
-        let temp_dir = tempdir()?;
-        let current_rev = sanitized(&self.vcs.current_revision()?).to_string();
-        let rev = RevisionRange::new(old_commit, match new_commit {
-           Some(new_commit) => Some(new_commit),
-           None => Some(&current_rev)
-        });
-        let source_language_file = self.source_language().unwrap();
-        // let source_language_filename = &source_language_file.file_name;
-        // let source_path = self.vcs_relative_path(source_language_filename);
-        // let out_path = Path::new(&self.working_dir).join(source_language_filename);
-
-        // Grab the HEAD source language for validation
-        //self.vcs.show(&source_path.to_string_lossy(), None, &out_path.to_string_lossy())?;
-
-        let mut translations = find_languages(&Path::new(&self.working_dir).to_path_buf(), 
-            &self.match_rex, &self.lang_rex)?;
-
-        translations.retain(|_key, value| {
-            value.revision == rev
-        });
-
-        if translations.is_empty() {
-            Err(format!("working_dir {:?} doesn't contain any translations", &self.working_dir))?;
-        }
-
-        println!("found {} translations", translations.keys().count());
-
-//
-        let source = self.source_language().unwrap();
-        let source_path_vcs = self.vcs_relative_path(&source.file_name);
-        let source_path_out = rev.append_to_file_name(Path::new(temp_dir.path()).join(&source.file_name))?;
-
-        let rev_old = RevisionRange::new(rev.old_rev_as_ref(), None);
-        let rev_new = RevisionRange::new(None, rev.new_rev_as_ref());
-
-        if old_commit.is_none() {
-            // Grab the HEAD source language and use it as our source
-            self.vcs.show(&source_path_vcs.to_string_lossy(), None, &source_path_out.to_string_lossy())?;
-        } else {
-            // Grab the old and new commits, query the changes, and use the output as our source
-            let old_path = rev_old.append_to_file_name(Path::new(temp_dir.path()).join(&source.file_name))?;
-            self.vcs.show(&source_path_vcs.to_string_lossy(), old_commit, &old_path.to_string_lossy())?;
-
-            let new_path = rev_new.append_to_file_name(Path::new(temp_dir.path()).join(&source.file_name))?;
-            self.vcs.show(&source_path_vcs.to_string_lossy(), new_commit, &new_path.to_string_lossy())?;
-
-            let query : query::CirupQuery;
-
-            query = query::query_change(&new_path.to_string_lossy(), &old_path.to_string_lossy());
-
-            query.run_interactive(Some(&source_path_out.to_string_lossy()));
-        }
-//
-
-        for (language, language_file) in &translations {
-            println!("processing translation: {}", language);
-
-            if language != &self.source_language {
-                let query_string = r"
-                    SELECT
-                        B.key, B.val
-                    FROM B
-                    INNER JOIN A on (A.key = B.key) AND (A.val <> B.val)";
-
-                // let query_string = r"
-                //     SELECT
-                //         A.key, A.val
-                //     FROM A
-                //     INNER JOIN B on (A.key = B.key) and (A.val = B.val)";
-                let query = query::CirupQuery::new(query_string, &source_path_out.to_string_lossy(), 
-                    Some(&language_file.path.to_string_lossy()));
-                let file_path = rev.append_to_file_name(Path::new(temp_dir.path()).join(&language_file.file_name))?;
-                query.run_interactive(Some(&file_path.to_string_lossy()));
-                // if !query.run().is_empty() && !force {
-                //     Err(format!(r"translation {} contains untranslated strings. 
-                //     translate all strings or use use the force option.", language))?;
-                // }
-
-            // }
-
-                match self.languages.get(language) {
-                    Some(vcs_language_path) => {
-                        println!("merging {:?} into {:?}", language_file.path, vcs_language_path.path);
-                        let query = query::query_merge(&vcs_language_path.path.to_string_lossy(), &file_path.to_string_lossy());
-                        query.run_interactive(Some(&vcs_language_path.path.to_string_lossy()));
-                    },
-                    None => {
-                        println!("no source language for translation {}", language);
-                    },
-                }
-            }
-        }
-
-        println!("push complete");
-
-        Ok(())
-    }
-
-/*
-PULL
--no old commit
-    diff source language with other languages
--old commit
-    diff source language old and new (new strings)
-    diff that file with all the latest language files (missing translations)
--with-changes
-    same as above, but show changed strings...
-*/
-
-/*
-If no old commit is specified:
-    diff the source language with the other languages
-    generate an output file for every target language, with the missing translations
-If an old commit is specified:
-    diff the changes between the old and new version of the source language (new and updated strings)
-    generate an output file for every target language, with missing missing translations, 
-    and translations (potentially) needing an update
-*/
-    pub fn pull(
-        &self, 
-        old_commit: Option<&str>, 
-        new_commit: Option<&str>,
-        show_changes: bool) 
-        -> Result<(), Box<Error>> {
-        let temp_dir = tempdir()?;
-        let current_rev = sanitized(&self.vcs.current_revision()?).to_string();
-        let rev = RevisionRange::new(old_commit, match new_commit {
-           Some(new_commit) => Some(new_commit),
-           None => Some(&current_rev)
-        });
+    fn create_source_language_file(&self, rev: &RevisionRange, show_changes: bool) -> Result<PathBuf, Box<Error>> {
+        debug!("preparing source file for revision(s) {}", rev);
         let source = self.source_language().unwrap();
         let source_path_vcs = self.vcs_relative_path(&source.file_name);
         let source_path_out = rev.append_to_file_name(Path::new(&self.working_dir).join(&source.file_name))?;
 
-        let rev_old = RevisionRange::new(rev.old_rev_as_ref(), None);
-        let rev_new = RevisionRange::new(None, rev.new_rev_as_ref());
+        let old_commit = rev.old_rev_as_ref();
+        let new_commit = rev.old_rev_as_ref();
 
-        if old_commit.is_none() {
-            // Grab the HEAD source language and use it as our source
+        if rev.old_rev.is_none() {
             self.vcs.show(&source_path_vcs.to_string_lossy(), None, &source_path_out.to_string_lossy())?;
         } else {
-            // Grab the old and new commits, query the changes, and use the output as our source
-            let old_path = rev_old.append_to_file_name(Path::new(temp_dir.path()).join(&source.file_name))?;
+            let rev_old = RevisionRange::new(old_commit, None);
+            let old_path = rev_old.append_to_file_name(Path::new(self.temp_dir.path()).join(&source.file_name))?;
             self.vcs.show(&source_path_vcs.to_string_lossy(), old_commit, &old_path.to_string_lossy())?;
 
-            let new_path = rev_new.append_to_file_name(Path::new(temp_dir.path()).join(&source.file_name))?;
+            let rev_new = RevisionRange::new(None, new_commit);
+            let new_path = rev_new.append_to_file_name(Path::new(self.temp_dir.path()).join(&source.file_name))?;
             self.vcs.show(&source_path_vcs.to_string_lossy(), new_commit, &new_path.to_string_lossy())?;
+
+            debug!("generating source file from {} and {}", old_path.display(), new_path.display());
 
             let query : query::CirupQuery;
 
@@ -316,18 +187,103 @@ If an old commit is specified:
             } else {
                 query = query::query_diff(&new_path.to_string_lossy(), &old_path.to_string_lossy());
             }
+
             query.run_interactive(Some(&source_path_out.to_string_lossy()));
         }
+
+        debug!("source file path is {}", source_path_out.display());
+
+        Ok(source_path_out)
+    }
+
+    pub fn push(
+        &self, 
+        old_commit: Option<&str>, 
+        new_commit: Option<&str>) 
+        -> Result<(), Box<Error>> {
+        let current_rev = sanitized(&self.vcs.current_revision()?).to_string();
+        let rev = RevisionRange::new(old_commit, match new_commit {
+           Some(new_commit) => Some(new_commit),
+           None => Some(&current_rev)
+        });
+        let source_path_out = self.create_source_language_file(&rev, true)?;
+       
+        let mut translations = find_languages(&Path::new(&self.working_dir).to_path_buf(), &self.match_rex, &self.lang_rex)?;
+        translations.retain(|_key, value| {
+            value.revision == rev
+        });
+        if translations.is_empty() {
+            Err(format!("no pending translations for revision(s) {} in {}", rev, &self.working_dir))?;
+        }
+
+        for (language, language_file) in &translations {
+            if language != &self.source_language {
+                debug!("preparing to push {}", language);
+
+                let query_string = r"
+                    SELECT
+                        B.key, B.val
+                    FROM B
+                    INNER JOIN A on (A.key = B.key) AND (A.val <> B.val)";
+
+                let query = query::CirupQuery::new(query_string, &source_path_out.to_string_lossy(), Some(&language_file.path.to_string_lossy()));
+                let file_path = rev.append_to_file_name(Path::new(self.temp_dir.path()).join(&language_file.file_name))?;
+
+                debug!("generating intermediate file from {} and {}", source_path_out.display(), language_file.path.display());
+                query.run_interactive(Some(&file_path.to_string_lossy()));
+
+                match self.languages.get(language) {
+                    Some(vcs_language_file) => {
+                        debug!("merging {} into {}", language_file.path.display(), vcs_language_file.path.display());
+                        let query = query::query_merge(&vcs_language_file.path.to_string_lossy(), &file_path.to_string_lossy());
+                        query.run_interactive(Some(&vcs_language_file.path.to_string_lossy()));
+                        info!("merged translation for {} from {} into {}", language, language_file.path.display(), vcs_language_file.path.display());
+                    },
+                    None => {
+                        warn!("no source language for {} in version control!", language);
+                    },
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+/*
+If no old commit is specified:
+    diff the source language with the other languages
+    generate an output file for every target language, with the missing translations
+If an old commit is specified:
+    new commit defaults to HEAD
+    diff the changes between the old and new version of the source language
+    generate an output file for every target language, with missing missing translations
+    (and, optionally, changed translations)
+*/
+    pub fn pull(
+        &self, 
+        old_commit: Option<&str>, 
+        new_commit: Option<&str>,
+        show_changes: bool) -> Result<(), Box<Error>> {
+        let current_rev = sanitized(&self.vcs.current_revision()?);
+        let rev = RevisionRange::new(old_commit, match new_commit {
+           Some(new_commit) => Some(new_commit),
+           None => Some(&current_rev)
+        });
+        let source_path_out = self.create_source_language_file(&rev, show_changes)?;
 
         for (language, language_file) in &self.languages {
             if language == &self.source_language {
                 continue
             }
 
+            debug!("generating translation for {}", language);
+
             let target_path_vcs = self.vcs_relative_path(&language_file.file_name);
             let target_path_out = rev.append_to_file_name(Path::new(&self.working_dir).join(&language_file.file_name))?;
 
-            let file_path = rev_new.append_to_file_name(Path::new(temp_dir.path()).join(&language_file.file_name))?;
+            let file_path = RevisionRange::new(None, rev.new_rev_as_ref())
+                .append_to_file_name(Path::new(self.temp_dir.path()).
+                    join(&language_file.file_name))?;
             self.vcs.show(&target_path_vcs.to_string_lossy(), new_commit, &file_path.to_string_lossy())?;
 
             let query : query::CirupQuery;
@@ -345,7 +301,7 @@ If an old commit is specified:
             
             query.run_interactive(Some(&target_path_out.to_string_lossy()));
 
-            info!("translation file generated: {:?}", target_path_out);
+            info!("generated translation for {} in {}", language, target_path_out.display());
         }
 
         Ok(())
