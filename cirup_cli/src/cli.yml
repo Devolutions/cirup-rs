@@ -40,7 +40,13 @@ subcommands:
     - push:
         about: "merge translations from working_dir back into source control. [config] is required."
     - vcs-log:
-        about: "show the version control history of the source language. [config] is required."
+        about: "show the version control history of the source language, newest first. [config] is required."
+        args:
+            - limit:
+                long: limit
+                short: l
+                takes_value: true
+                help: "limit the number of results returned"
     - vcs-diff:
         about: "diff two commits of the source language. [config] is required. [old-commit] is required."
     - file-print:

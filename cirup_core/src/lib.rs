@@ -1,6 +1,7 @@
 extern crate regex;
 extern crate treexml;
 extern crate uuid;
+extern crate chrono;
 
 #[macro_use]
 extern crate serde_derive;

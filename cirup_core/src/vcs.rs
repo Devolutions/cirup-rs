@@ -4,6 +4,7 @@ use std::boxed::Box;
 use std::error::Error;
 use std::path::Path;
 
+use chrono::*;
 use regex::Regex;
 
 use config;
@@ -23,6 +24,7 @@ pub trait Vcs {
         old_commit: Option<&str>,
         new_commit: Option<&str>,
         inclusive: bool,
+        limit: u32,
     ) -> Result<(), Box<Error>>;
     fn diff(
         &self,
@@ -169,8 +171,9 @@ impl Vcs for Git {
         old_commit: Option<&str>,
         new_commit: Option<&str>,
         inclusive: bool,
+        limit: u32
     ) -> Result<(), Box<Error>> {
-        let format = format!("--pretty=format:%h - %an - %s");
+        let format = format!("--pretty=format:%h - %aI - %an - %s");
         let commit: String;
 
         if old_commit.is_some() {
@@ -188,7 +191,18 @@ impl Vcs for Git {
             commit = "HEAD".to_string();
         }
 
-        match self.meta.output(&["log", &format, &commit, filespec]) {
+        let limit_arg = limit.to_string();
+        let mut args = vec!["log", &format];
+
+        if limit > 0 {
+            args.push("--max-count");
+            args.push(&limit_arg);
+        };
+
+        args.push(&commit);
+        args.push(filespec);
+
+        match self.meta.output(&args) {
             Ok(output) => {
                 println!("{}", output);
                 Ok(())
@@ -253,6 +267,24 @@ struct LogEntry {
 struct Log {
     #[serde(rename = "logentry")]
     entries: Vec<LogEntry>,
+}
+
+impl LogEntry {
+    fn iso_formatted_date(&self) -> Result<String, Box<Error>> {
+        let dt = Utc.datetime_from_str(self.date.trim_end_matches("Z"), "%Y-%m-%dT%H:%M:%S%.6f")?;
+        return Ok(dt.to_rfc3339_opts(SecondsFormat::Secs, false))
+    }
+}
+
+#[test]
+fn iso_formatted_date_test() {
+    let log = LogEntry {
+        revision: 0,
+        author: "0".to_string(),
+        msg: "0".to_string(),
+        date: "2017-12-23T15:51:26.982890Z".to_string()
+    };
+    assert_eq!(log.iso_formatted_date().unwrap(), "2017-12-23T15:51:26+00:00".to_string());
 }
 
 impl Svn {
@@ -345,30 +377,40 @@ impl Vcs for Svn {
         old_commit: Option<&str>,
         new_commit: Option<&str>,
         _inclusive: bool,
+        limit: u32
     ) -> Result<(), Box<Error>> {
         let commit = format!(
             "{}:{}",
+            if new_commit.is_some() {
+                new_commit.unwrap()
+            } else {
+                "HEAD"
+            },
             if old_commit.is_some() {
                 old_commit.unwrap()
             } else {
                 "1"
             },
-            if new_commit.is_some() {
-                new_commit.unwrap()
-            } else {
-                "HEAD"
-            }
         );
+
+        let limit_arg = limit.to_string();
+        let mut args = vec!["log", "--revision", &commit, "--xml", filespec];
+
+        if limit > 0 {
+            args.push("--limit");
+            args.push(&limit_arg);
+        };
 
         let xml = self
             .meta
-            .output(&["log", "--revision", &commit, "--xml", filespec])?;
+            .output(&args)?;
         let log: Log = serde_xml_rs::de::from_str(&xml)?;
 
         for entry in &log.entries {
             println!(
-                "{} - {} - {}",
+                "{} - {} - {} - {}",
                 entry.revision,
+                entry.iso_formatted_date()?,
                 entry.author,
                 entry.msg.lines().nth(0).unwrap()
             );

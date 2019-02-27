@@ -113,6 +113,7 @@ fn run(matches: &clap::ArgMatches, config: Option<Config>) -> Result<(), Box<Err
                     args.value_of("old_commit"),
                     args.value_of("new_commit"),
                     true,
+                    value_t!(args, "limit", u32).unwrap_or(0),
                 )?;
 
                 Ok(())

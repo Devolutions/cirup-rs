@@ -14,6 +14,7 @@ const LOCATE_COMMAND: &'static str = "where";
 const LOCATE_COMMAND: &'static str = "which";
 
 pub fn status(exe: &str, dir: &Path, args: &[&str]) -> Result<i32, Box<Error>> {
+    trace!("{} {:?}", exe, args);
     let status = Command::new(exe)
         .current_dir(dir)
         .args(args)
@@ -28,6 +29,7 @@ pub fn status(exe: &str, dir: &Path, args: &[&str]) -> Result<i32, Box<Error>> {
 }
 
 pub fn output(exe: &str, dir: &Path, args: &[&str]) -> Result<String, Box<Error>> {
+    trace!("{} {:?}", exe, args);
     let output = Command::new(exe).current_dir(dir).args(args).output()?;
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
