@@ -30,7 +30,7 @@ pub struct Sync {
 struct LanguageFile {
     path: PathBuf,
     file_name: String,
-    file_ext: String,
+    _file_ext: String,
     revision: RevisionRange,
 }
 
@@ -39,7 +39,7 @@ impl Default for LanguageFile {
         LanguageFile {
             path: PathBuf::default(),
             file_name: String::new(),
-            file_ext: String::new(),
+            _file_ext: String::new(),
             revision: RevisionRange::default(),
         }
     }
@@ -65,7 +65,7 @@ impl LanguageFile {
         Ok(LanguageFile {
             path: path_ref,
             file_name: file_name,
-            file_ext: file_ext,
+            _file_ext: file_ext,
             revision: language_revision
         })
     }
