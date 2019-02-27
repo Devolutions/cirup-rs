@@ -1,23 +1,23 @@
+use std::error::Error;
 use std::fs;
 use std::path::Path;
-use std::error::Error;
 
 use toml;
 
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Config {
     pub vcs: Vcs,
     pub sync: Sync,
 }
 
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Vcs {
     pub plugin: String,
     pub local_path: String,
     pub remote_path: String,
 }
 
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Sync {
     pub source_language: String,
     pub target_languages: Vec<String>,
@@ -33,7 +33,10 @@ impl Config {
         let config = Config::new_from_string(&contents)?;
 
         info!("source language: {}", config.sync.source_language);
-        info!("target language(s): {}", config.sync.target_languages.join(" "));
+        info!(
+            "target language(s): {}",
+            config.sync.target_languages.join(" ")
+        );
 
         Ok(config)
     }

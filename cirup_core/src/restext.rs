@@ -1,13 +1,12 @@
-
 use regex::Regex;
 use std::fmt;
 use std::fs;
 use std::io::prelude::*;
 
-use Resource;
-use std::error::Error;
+use file::load_string_from_file;
 use file::{FileFormat, FormatType};
-use file::{load_string_from_file};
+use std::error::Error;
+use Resource;
 
 /**
  * .restext file format:
@@ -19,9 +18,7 @@ lazy_static! {
     static ref REGEX_RESTEXT: Regex = Regex::new(r"^\s*(\w+)=(.*)$").unwrap();
 }
 
-pub struct RestextFileFormat {
-
-}
+pub struct RestextFileFormat {}
 
 /* https://lise-henry.github.io/articles/optimising_strings.html */
 
@@ -32,14 +29,13 @@ pub fn escape_newlines(input: &str) -> String {
             '\\' => output.push_str("\\\\"),
             '\r' => output.push_str("\\r"),
             '\n' => output.push_str("\\n"),
-            _ => output.push(c)
+            _ => output.push(c),
         }
     }
     output
 }
 
 impl FileFormat for RestextFileFormat {
-
     const EXTENSION: &'static str = "restext";
     const TYPE: FormatType = FormatType::Restext;
 
@@ -69,8 +65,11 @@ impl FileFormat for RestextFileFormat {
 
         for resource in resources {
             let escaped_value = escape_newlines(resource.value.as_str());
-            fmt::write(&mut output, format_args!("{}={}\r\n",
-                resource.name, escaped_value)).unwrap();
+            fmt::write(
+                &mut output,
+                format_args!("{}={}\r\n", resource.name, escaped_value),
+            )
+            .unwrap();
         }
 
         output
@@ -87,12 +86,11 @@ impl FileFormat for RestextFileFormat {
 
 #[test]
 fn test_restext_parse() {
-    let text =
-"lblBoat=I'm on a boat.\r\n\
-lblYolo=You only live once\r\n\
-lblDogs=Who let the dogs out?\r\n";
+    let text = "lblBoat=I'm on a boat.\r\n\
+                lblYolo=You only live once\r\n\
+                lblDogs=Who let the dogs out?\r\n";
 
-    let file_format = RestextFileFormat { };
+    let file_format = RestextFileFormat {};
 
     let resources = file_format.parse_from_str(&text).unwrap();
 
@@ -111,8 +109,7 @@ lblDogs=Who let the dogs out?\r\n";
 
 #[test]
 fn test_restext_write() {
-
-    let file_format = RestextFileFormat { };
+    let file_format = RestextFileFormat {};
 
     let resources = vec![
         Resource::new("lblBoat", "I'm on a boat."),
@@ -120,10 +117,9 @@ fn test_restext_write() {
         Resource::new("lblDogs", "Who let the dogs out?"),
     ];
 
-    let expected_text =
-"lblBoat=I'm on a boat.\r\n\
-lblYolo=You only live once\r\n\
-lblDogs=Who let the dogs out?\r\n";
+    let expected_text = "lblBoat=I'm on a boat.\r\n\
+                         lblYolo=You only live once\r\n\
+                         lblDogs=Who let the dogs out?\r\n";
 
     let actual_text = file_format.write_to_str(&resources);
     println!("{}", actual_text);

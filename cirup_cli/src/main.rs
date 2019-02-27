@@ -52,89 +52,110 @@ fn convert(file_one: &str, out_file: &str) {
 
 fn run(matches: &clap::ArgMatches, config: Option<Config>) -> Result<(), Box<Error>> {
     match matches.subcommand() {
-        ("file-print", Some(args)) => { 
+        ("file-print", Some(args)) => {
             print(args.value_of("file").unwrap(), args.value_of("output"));
             Ok(())
-        },
-        ("file-diff", Some(args)) => { 
-            if args.is_present("show_changes") {
-                change(args.value_of("file1").unwrap(), args.value_of("file2").unwrap(), args.value_of("output"));
-            } else {
-                diff(args.value_of("file1").unwrap(), args.value_of("file2").unwrap(), args.value_of("output"));
-            }
-            Ok(())
-        },
-        ("file-merge", Some(args)) => {
-            merge(args.value_of("file1").unwrap(), args.value_of("file2").unwrap(), args.value_of("output"));
-            Ok(())
-        },
-        ("file-intersect", Some(args)) => {
-            intersect(args.value_of("file1").unwrap(), args.value_of("file2").unwrap(), args.value_of("output"));
-            Ok(())
-        },
-        ("file-subtract", Some(args)) => {
-            subtract(args.value_of("file1").unwrap(), args.value_of("file2").unwrap(), args.value_of("output"));
-            Ok(())
-        },
-        ("file-convert", Some(args)) => {
-            convert(args.value_of("file").unwrap(), args.value_of("output").unwrap());
-            Ok(())
-        },
-        ("vcs-log", Some(args)) => {
-            match config {
-                Some(c) => {
-                    let sync = Sync::new(&c)?;
-
-                    sync.vcs.log(
-                        &sync.source_language_path().to_string_lossy(), 
-                        args.value_of("format"), 
-                        args.value_of("old_commit"), 
-                        args.value_of("new_commit"), 
-                        true)?;
-
-                    Ok(())
-                },
-                None => { Err("configuration file required")? }
-            }
-        },
-        ("vcs-diff", Some(args)) => {
-            match config {
-                Some(c) => {
-                    let sync = Sync::new(&c)?;
-
-                    sync.vcs.diff(
-                        &sync.source_language_path().to_string_lossy(), 
-                        args.value_of("old_commit").unwrap(), 
-                        args.value_of("new_commit"), )?;
-
-                    Ok(())
-                },
-                None => { Err("configuration file required")? }
-            }
-        },
-        ("pull", Some(args)) => {
-            match config {
-                Some(c) => {
-                    let sync = Sync::new(&c)?;
-                    sync.pull(args.value_of("old_commit"), args.value_of("new_commit"), args.is_present("show_changes"))?;
-
-                    Ok(())
-                },
-                None => { Err("configuration file required")? }
-            }
-        },
-        ("push", Some(args)) => {
-            match config {
-                Some(c) => {
-                    let sync = Sync::new(&c)?;
-                    sync.push(args.value_of("old_commit"), args.value_of("new_commit"))?;
-
-                    Ok(())
-                },
-                None => { Err("configuration file required")? }
-            }
         }
-        _ => { Err("unrecognised subcommand")? },
+        ("file-diff", Some(args)) => {
+            if args.is_present("show_changes") {
+                change(
+                    args.value_of("file1").unwrap(),
+                    args.value_of("file2").unwrap(),
+                    args.value_of("output"),
+                );
+            } else {
+                diff(
+                    args.value_of("file1").unwrap(),
+                    args.value_of("file2").unwrap(),
+                    args.value_of("output"),
+                );
+            }
+            Ok(())
+        }
+        ("file-merge", Some(args)) => {
+            merge(
+                args.value_of("file1").unwrap(),
+                args.value_of("file2").unwrap(),
+                args.value_of("output"),
+            );
+            Ok(())
+        }
+        ("file-intersect", Some(args)) => {
+            intersect(
+                args.value_of("file1").unwrap(),
+                args.value_of("file2").unwrap(),
+                args.value_of("output"),
+            );
+            Ok(())
+        }
+        ("file-subtract", Some(args)) => {
+            subtract(
+                args.value_of("file1").unwrap(),
+                args.value_of("file2").unwrap(),
+                args.value_of("output"),
+            );
+            Ok(())
+        }
+        ("file-convert", Some(args)) => {
+            convert(
+                args.value_of("file").unwrap(),
+                args.value_of("output").unwrap(),
+            );
+            Ok(())
+        }
+        ("vcs-log", Some(args)) => match config {
+            Some(c) => {
+                let sync = Sync::new(&c)?;
+
+                sync.vcs.log(
+                    &sync.source_language_path().to_string_lossy(),
+                    args.value_of("format"),
+                    args.value_of("old_commit"),
+                    args.value_of("new_commit"),
+                    true,
+                )?;
+
+                Ok(())
+            }
+            None => Err("configuration file required")?,
+        },
+        ("vcs-diff", Some(args)) => match config {
+            Some(c) => {
+                let sync = Sync::new(&c)?;
+
+                sync.vcs.diff(
+                    &sync.source_language_path().to_string_lossy(),
+                    args.value_of("old_commit").unwrap(),
+                    args.value_of("new_commit"),
+                )?;
+
+                Ok(())
+            }
+            None => Err("configuration file required")?,
+        },
+        ("pull", Some(args)) => match config {
+            Some(c) => {
+                let sync = Sync::new(&c)?;
+                sync.pull(
+                    args.value_of("old_commit"),
+                    args.value_of("new_commit"),
+                    args.is_present("show_changes"),
+                )?;
+
+                Ok(())
+            }
+            None => Err("configuration file required")?,
+        },
+        ("push", Some(args)) => match config {
+            Some(c) => {
+                let sync = Sync::new(&c)?;
+                sync.push(args.value_of("old_commit"), args.value_of("new_commit"))?;
+
+                Ok(())
+            }
+            None => Err("configuration file required")?,
+        },
+        _ => Err("unrecognised subcommand")?,
     }
 }
 
@@ -152,17 +173,17 @@ fn main() {
     let mut builder = Builder::from_env(Env::default().default_filter_or(min_log_level));
     builder.init();
 
-    let mut config : Option<Config> = None;
+    let mut config: Option<Config> = None;
 
     if let Some(config_file) = matches.value_of("config") {
         match Config::new(Path::new(config_file)) {
-            Ok(c) => { config = Some(c) },
-            Err(e) => { error!("unable to read the config file ({})", e) }
+            Ok(c) => config = Some(c),
+            Err(e) => error!("unable to read the config file ({})", e),
         }
     }
 
     match run(&matches, config) {
-        Ok(()) => { return }
-        Err(e) => { error!("an unexpected error occured ({})", e) }
+        Ok(()) => return,
+        Err(e) => error!("an unexpected error occured ({})", e),
     }
 }

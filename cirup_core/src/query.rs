@@ -1,14 +1,13 @@
-
-use prettytable::Table;
-use prettytable::row::Row;
 use prettytable::cell::Cell;
+use prettytable::row::Row;
+use prettytable::Table;
 
 use rusqlite::types::*;
-use rusqlite::{Connection, Statement, Error};
-use rusqlite::{Rows};
+use rusqlite::Rows;
+use rusqlite::{Connection, Error, Statement};
 
+use file::{save_resource_file, vfile_set};
 use vtab::{create_db, init_db, register_table};
-use file::{vfile_set, save_resource_file};
 
 use Resource;
 
@@ -18,17 +17,15 @@ pub fn print_pretty(columns: Vec<String>, values: &mut Rows) {
     //write header first
     table.set_titles(columns.iter().collect());
     loop {
-        if let Some(v) = values.next(){
-            if let Some (res) = v.ok() {
+        if let Some(v) = values.next() {
+            if let Some(res) = v.ok() {
                 for i in 0..res.column_count() {
                     let val = Value::data_type(&res.get(i));
                     match val {
                         Type::Real | Type::Integer => {
-                            row.add_cell(Cell::new(&res.get::<usize,i64>(i).to_string()));
-                        },
-                        Type::Text => {
-                            row.add_cell(Cell::new(&res.get::<usize,String>(i)))
-                        },
+                            row.add_cell(Cell::new(&res.get::<usize, i64>(i).to_string()));
+                        }
+                        Type::Text => row.add_cell(Cell::new(&res.get::<usize, String>(i))),
                         _ => {
                             // Do nothing.
                         }
@@ -38,7 +35,7 @@ pub fn print_pretty(columns: Vec<String>, values: &mut Rows) {
                 row = Row::empty();
             }
         } else {
-            break
+            break;
         }
     }
     println!("{}", table);
@@ -84,15 +81,15 @@ pub fn execute_query(db: &Connection, query: &str) {
             table_result.push(row);
             let mut response = statement.query(&[]).unwrap();
             print_pretty(column_names, &mut response);
-        },
-        Err(e) => {
-            match e {
-                Error::SqliteFailure(_r, m) => {
-                    if let Some(msg) = m { error!("{}", msg) };
-                },
-                _ => error!("{:?}", Error::ModuleError(format!("{}", e)))
-            }
         }
+        Err(e) => match e {
+            Error::SqliteFailure(_r, m) => {
+                if let Some(msg) = m {
+                    error!("{}", msg)
+                };
+            }
+            _ => error!("{:?}", Error::ModuleError(format!("{}", e))),
+        },
     }
 }
 
@@ -103,14 +100,14 @@ pub fn execute_query_resource(db: &Connection, query: &str) -> Vec<Resource> {
 
     loop {
         if let Some(v) = response.next() {
-            if let Some (res) = v.ok() {
-                let name = &res.get::<usize,String>(0);
-                let value = &res.get::<usize,String>(1);
+            if let Some(res) = v.ok() {
+                let name = &res.get::<usize, String>(0);
+                let value = &res.get::<usize, String>(1);
                 let resource = Resource::new(name, value);
                 resources.push(resource);
             }
         } else {
-            break
+            break;
         }
     }
 
@@ -128,9 +125,7 @@ pub struct CirupEngine {
 
 impl CirupEngine {
     pub fn new() -> Self {
-        CirupEngine {
-            db: create_db(),
-        }
+        CirupEngine { db: create_db() }
     }
 
     #[allow(dead_code)]
@@ -157,30 +152,30 @@ pub struct CirupQuery {
     query: String,
 }
 
-const PRINT_QUERY : &str = "SELECT * FROM A";
-const DIFF_QUERY : &str = r"
+const PRINT_QUERY: &str = "SELECT * FROM A";
+const DIFF_QUERY: &str = r"
         SELECT A.key, A.val, B.val 
         FROM A 
         LEFT OUTER JOIN B ON A.key = B.key 
         WHERE (B.val IS NULL)";
-const CHANGE_QUERY : &str = r"
+const CHANGE_QUERY: &str = r"
         SELECT A.key, A.val, B.val 
         FROM A 
         LEFT OUTER JOIN B ON A.key = B.key 
         WHERE (B.val IS NULL) OR (A.val <> B.val)";
-const MERGE_QUERY : &str = r"
+const MERGE_QUERY: &str = r"
         SELECT A.key, CASE WHEN B.val IS NOT NULL THEN B.val ELSE A.val END
         FROM A
         LEFT OUTER JOIN B on A.key = B.key";
-const INTERSECT_QUERY : &str = r"
+const INTERSECT_QUERY: &str = r"
         SELECT * FROM A 
         INTERSECT 
         SELECT * from B";
-const SUBTRACT_QUERY : &str = r"
+const SUBTRACT_QUERY: &str = r"
         SELECT * FROM A 
         WHERE A.key NOT IN 
             (SELECT B.key FROM B)";
-const CONVERT_QUERY : &str = "SELECT * FROM A";
+const CONVERT_QUERY: &str = "SELECT * FROM A";
 
 pub fn query_print(file: &str) -> CirupQuery {
     CirupQuery::new(PRINT_QUERY, file, None)
@@ -212,12 +207,12 @@ pub fn query_subtract(file_one: &str, file_two: &str) -> CirupQuery {
 
 impl CirupQuery {
     pub fn new(query: &str, file_one: &str, file_two: Option<&str>) -> Self {
-       let engine = CirupEngine::new();
-       engine.register_table_from_file("A", file_one);
+        let engine = CirupEngine::new();
+        engine.register_table_from_file("A", file_one);
 
-       if file_two.is_some() {
-           engine.register_table_from_file("B", file_two.unwrap());
-       }
+        if file_two.is_some() {
+            engine.register_table_from_file("B", file_two.unwrap());
+        }
 
         CirupQuery {
             engine: engine,
@@ -241,7 +236,7 @@ impl CirupQuery {
 }
 
 #[cfg(test)]
-use file::{load_resource_str};
+use file::load_resource_str;
 
 #[test]
 fn test_query() {
@@ -266,9 +261,18 @@ fn test_query() {
 fn test_query_subtract() {
     let engine = CirupEngine::new();
 
-    engine.register_table_from_str("A", "test1A.restext", include_str!("../test/subtract/test1A.restext"));
-    engine.register_table_from_str("B", "test1B.restext", include_str!("../test/subtract/test1B.restext"));
-    let expected = load_resource_str(include_str!("../test/subtract/test1C.restext"), "restext").unwrap();
+    engine.register_table_from_str(
+        "A",
+        "test1A.restext",
+        include_str!("../test/subtract/test1A.restext"),
+    );
+    engine.register_table_from_str(
+        "B",
+        "test1B.restext",
+        include_str!("../test/subtract/test1B.restext"),
+    );
+    let expected =
+        load_resource_str(include_str!("../test/subtract/test1C.restext"), "restext").unwrap();
 
     let actual = engine.query_resource("SELECT * FROM A WHERE A.key NOT IN (SELECT B.key FROM B)");
     assert_eq!(actual, expected);
