@@ -166,7 +166,12 @@ const CHANGE_QUERY: &str = r"
 const MERGE_QUERY: &str = r"
         SELECT A.key, CASE WHEN B.val IS NOT NULL THEN B.val ELSE A.val END
         FROM A
-        LEFT OUTER JOIN B on A.key = B.key";
+        LEFT OUTER JOIN B on A.key = B.key
+        UNION
+        SELECT B.key, B.val
+        FROM B
+        LEFT OUTER JOIN A on A.key = B.key
+        WHERE (A.key IS NULL)";
 const INTERSECT_QUERY: &str = r"
         SELECT * FROM A 
         INTERSECT 

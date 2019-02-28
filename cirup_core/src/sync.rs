@@ -1,5 +1,4 @@
 use std::boxed::Box;
-use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::fs;
@@ -18,7 +17,7 @@ use vcs::Vcs;
 
 pub struct Sync {
     pub vcs: Box<Vcs>,
-    languages: HashMap<String, LanguageFile>,
+    languages: Vec<LanguageFile>,
     source_language: String,
     source_path: String,
     working_dir: String,
@@ -28,6 +27,7 @@ pub struct Sync {
 }
 
 struct LanguageFile {
+    name: String,
     path: PathBuf,
     file_name: String,
     _file_ext: String,
@@ -37,6 +37,7 @@ struct LanguageFile {
 impl Default for LanguageFile {
     fn default() -> LanguageFile {
         LanguageFile {
+            name: String::new(),
             path: PathBuf::default(),
             file_name: String::new(),
             _file_ext: String::new(),
@@ -46,7 +47,7 @@ impl Default for LanguageFile {
 }
 
 impl LanguageFile {
-    fn load<T: AsRef<Path>>(path: T) -> Result<LanguageFile, Box<Error>> {
+    fn load<T: AsRef<Path>>(path: T, match_regex: &Regex, lang_regex: &Regex,) -> Result<LanguageFile, Box<Error>> {
         let path_ref = PathBuf::from(path.as_ref());
         if !path_ref.is_file() {
             Err("invalid language file")?;
@@ -63,12 +64,22 @@ impl LanguageFile {
             _ => Err(format!("invalid language file {:?}", path_ref))?,
         };
 
-        Ok(LanguageFile {
-            path: path_ref,
-            file_name: file_name,
-            _file_ext: file_ext,
-            revision: language_revision,
-        })
+        if !match_regex.is_match(&file_name) {
+            Err("invalid language file")?;
+        }
+
+        match lang_regex.captures(&file_name) {
+            Some(captures) => {
+                Ok(LanguageFile {
+                    name: captures[1].to_string(),
+                    path: path_ref,
+                    file_name: file_name.to_string(),
+                    _file_ext: file_ext,
+                    revision: language_revision,
+                })
+            },
+            None => Err("invalid language file")?
+        }
     }
 }
 
@@ -76,18 +87,12 @@ fn find_languages(
     source_dir: &PathBuf,
     match_regex: &Regex,
     lang_regex: &Regex,
-) -> Result<HashMap<String, LanguageFile>, Box<Error>> {
-    let mut languages: HashMap<String, LanguageFile> = HashMap::new();
+) -> Result<Vec<LanguageFile>, Box<Error>> {
+    let mut languages: Vec<LanguageFile> = Vec::new();
 
     for entry in fs::read_dir(&source_dir)? {
-        if let Ok(language_file) = LanguageFile::load(entry.unwrap().path()) {
-            if !match_regex.is_match(&language_file.file_name) {
-                continue;
-            }
-
-            if let Some(captures) = lang_regex.captures(&language_file.file_name.to_string()) {
-                languages.insert(captures[1].to_string(), language_file);
-            }
+        if let Ok(language_file) = LanguageFile::load(entry.unwrap().path(), match_regex, lang_regex) {
+                languages.push(language_file);
         }
     }
 
@@ -126,11 +131,11 @@ impl Sync {
             ))?;
         }
 
-        languages.retain(|key, _value| {
-            key == &config.sync.source_language || config.sync.target_languages.contains(key)
+        languages.retain(|value| {
+            value.name == config.sync.source_language || config.sync.target_languages.contains(&value.name)
         });
 
-        if !languages.contains_key(&config.sync.source_language) {
+        if !languages.iter().find(| &language_file| language_file.name == config.sync.source_language).is_some() {
             Err(format!(
                 "couldn't find source language file in {:?}",
                 &source_dir
@@ -156,7 +161,7 @@ impl Sync {
     }
 
     fn source_language(&self) -> Option<&LanguageFile> {
-        self.languages.get(&self.source_language)
+        self.languages.iter().find(| &language_file| language_file.name == self.source_language)
     }
 
     pub fn source_language_path(&self) -> PathBuf {
@@ -179,7 +184,7 @@ impl Sync {
             rev.append_to_file_name(Path::new(&self.working_dir).join(&source.file_name))?;
 
         let old_commit = rev.old_rev_as_ref();
-        let new_commit = rev.old_rev_as_ref();
+        let new_commit = rev.new_rev_as_ref();
 
         if rev.old_rev.is_none() {
             self.vcs.show(
@@ -249,7 +254,7 @@ impl Sync {
             &self.match_rex,
             &self.lang_rex,
         )?;
-        translations.retain(|_key, value| value.revision == rev);
+        translations.retain(|value| value.revision == rev);
         if translations.is_empty() {
             Err(format!(
                 "no pending translations for revision(s) {} in {}",
@@ -257,9 +262,9 @@ impl Sync {
             ))?;
         }
 
-        for (language, language_file) in &translations {
-            if language != &self.source_language {
-                debug!("preparing to push {}", language);
+        for translation_file in &translations {
+            if translation_file.name != self.source_language {
+                debug!("preparing to push {}", translation_file.name);
 
                 let query_string = r"
                     SELECT
@@ -270,24 +275,24 @@ impl Sync {
                 let query = query::CirupQuery::new(
                     query_string,
                     &source_path_out.to_string_lossy(),
-                    Some(&language_file.path.to_string_lossy()),
+                    Some(&translation_file.path.to_string_lossy()),
                 );
                 let file_path = rev.append_to_file_name(
-                    Path::new(self.temp_dir.path()).join(&language_file.file_name),
+                    Path::new(self.temp_dir.path()).join(&translation_file.file_name),
                 )?;
 
                 debug!(
                     "generating intermediate file from {} and {}",
                     source_path_out.display(),
-                    language_file.path.display()
+                    translation_file.path.display()
                 );
                 query.run_interactive(Some(&file_path.to_string_lossy()));
 
-                match self.languages.get(language) {
+                match self.languages.iter().find(| &language_file| language_file.name == translation_file.name) {
                     Some(vcs_language_file) => {
                         debug!(
                             "merging {} into {}",
-                            language_file.path.display(),
+                            translation_file.path.display(),
                             vcs_language_file.path.display()
                         );
                         let query = query::query_merge(
@@ -297,13 +302,13 @@ impl Sync {
                         query.run_interactive(Some(&vcs_language_file.path.to_string_lossy()));
                         info!(
                             "merged translation for {} from {} into {}",
-                            language,
-                            language_file.path.display(),
+                            translation_file.name,
+                            translation_file.path.display(),
                             vcs_language_file.path.display()
                         );
                     }
                     None => {
-                        warn!("no source language for {} in version control!", language);
+                        warn!("no source language for {} in version control!", translation_file.name);
                     }
                 }
             }
@@ -338,12 +343,12 @@ impl Sync {
         );
         let source_path_out = self.create_source_language_file(&rev, show_changes)?;
 
-        for (language, language_file) in &self.languages {
-            if language == &self.source_language {
+        for language_file in &self.languages {
+            if language_file.name == self.source_language {
                 continue;
             }
 
-            debug!("generating translation for {}", language);
+            debug!("generating translation for {}", language_file.name);
 
             let target_path_vcs = self.vcs_relative_path(&language_file.file_name);
             let target_path_out = rev
@@ -382,7 +387,7 @@ impl Sync {
 
             info!(
                 "generated translation for {} in {}",
-                language,
+                language_file.name,
                 target_path_out.display()
             );
         }
