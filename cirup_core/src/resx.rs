@@ -1,43 +1,43 @@
-
 extern crate treexml;
 use treexml::{Document, Element};
 
-use Resource;
-use std::error::Error;
-use file::{FileFormat, FormatType};
 use file::{load_string_from_file, save_string_to_file};
+use file::{FileFormat, FormatType};
+use std::error::Error;
+use Resource;
 
-pub struct ResxFileFormat {
-
-}
+pub struct ResxFileFormat {}
 
 fn without_bom(text: &str) -> &[u8] {
-       if text.starts_with("\u{feff}") {
-            return &text.as_bytes()[3..];
-        }; 
+    if text.starts_with("\u{feff}") {
+        return &text.as_bytes()[3..];
+    };
 
-        return text.as_bytes();
+    return text.as_bytes();
 }
 
 impl FileFormat for ResxFileFormat {
-
     const EXTENSION: &'static str = "resx";
     const TYPE: FormatType = FormatType::Resx;
 
     fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<Error>> {
-        let bytes = without_bom(text);
-        let doc = Document::parse(bytes).unwrap();
-        let root = doc.root.unwrap();
-
         let mut resources: Vec<Resource> = Vec::new();
-        let children: Vec<&treexml::Element> = root.filter_children(|t| t.name == "data").collect();
+        let bytes = without_bom(text);
 
-        for data in children {
-            let data_name = data.attributes.get(&"name".to_owned()).unwrap();
-            let value = data.find_child(|tag| tag.name == "value").unwrap().clone();
-            let data_value = value.text.unwrap_or_default().clone();
-            let resource = Resource::new(data_name, data_value.as_ref());
-            resources.push(resource);
+        if bytes.len() > 0 {
+            let doc = Document::parse(bytes).unwrap();
+            let root = doc.root.unwrap();
+
+            let children: Vec<&treexml::Element> =
+                root.filter_children(|t| t.name == "data").collect();
+
+            for data in children {
+                let data_name = data.attributes.get(&"name".to_owned()).unwrap();
+                let value = data.find_child(|tag| tag.name == "value").unwrap().clone();
+                let data_value = value.text.unwrap_or_default().clone();
+                let resource = Resource::new(data_name, data_value.as_ref());
+                resources.push(resource);
+            }
         }
 
         Ok(resources)
@@ -53,8 +53,10 @@ impl FileFormat for ResxFileFormat {
 
         for resource in resources {
             let mut data = Element::new("data");
-            data.attributes.insert("name".to_string(), resource.name.to_string());
-            data.attributes.insert("xml:space".to_string(), "preserve".to_string());
+            data.attributes
+                .insert("name".to_string(), resource.name.to_string());
+            data.attributes
+                .insert("xml:space".to_string(), "preserve".to_string());
             let mut value = Element::new("value");
             value.text = Some(resource.value.to_string());
             data.children.push(value);
@@ -93,7 +95,7 @@ fn test_resx_parse() {
 </root>
 "#;
 
-    let file_format = ResxFileFormat { };
+    let file_format = ResxFileFormat {};
 
     let resources = file_format.parse_from_str(&text).unwrap();
 
@@ -112,8 +114,7 @@ fn test_resx_parse() {
 
 #[test]
 fn test_resx_write() {
-
-    let file_format = ResxFileFormat { };
+    let file_format = ResxFileFormat {};
 
     let resources = vec![
         Resource::new("lblBoat", "I'm on a boat."),

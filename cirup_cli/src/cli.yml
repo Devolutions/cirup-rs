@@ -2,6 +2,11 @@ name: cirup
 author: Marc-André Moreau <marcandre.moreau@gmail.com>
 about: a translation continuous integration tool
 args:
+        - verbose:
+            short: v
+            multiple: true
+            global: true
+            help: Sets the level of verbosity
         - config:
             long: config
             short: c
@@ -22,25 +27,26 @@ args:
                 - old_commit
             global: true
             help: a git hash specifying the new commit
+        - show_changes:
+            long: show-changes
+            short: C
+            takes_value: false
+            global: true
+            help: "additionally print keys that have values in [file2] but that do not match the values in [file1]. 
+            this is useful for finding translations that need updating."
 subcommands:
     - pull:
-        about: "generate translations for all languages into working_dir"
+        about: "generate translations for all languages into working_dir. [config] is required."
     - push:
         about: "merge translations from working_dir back into source control. [config] is required."
-        args:
-            - force:
-                long: force
-                short: F
-                takes_value: false
-                help: "force the translations to be merged, even if they seem to match the source language"
     - vcs-log:
-        about: "show the version control history of the source language. [config] is required."
+        about: "show the version control history of the source language, newest first. [config] is required."
         args:
-            - format:
-                long: format
-                short: f
+            - limit:
+                long: limit
+                short: l
                 takes_value: true
-                default_value: oneline
+                help: "limit the number of results returned"
     - vcs-diff:
         about: "diff two commits of the source language. [config] is required. [old-commit] is required."
     - file-print:
@@ -80,14 +86,8 @@ subcommands:
             - output:
                 index: 3
                 takes_value: true
-            - show_changes:
-                long: show-changes
-                short: C
-                takes_value: false
-                help: "additionally print keys that have values in [file2] but that do not match the values in [file1]. 
-                this is useful for finding update translations when comparing two versions of the same language."
     - file-merge:
-        about: merges the values from [file1] and [file2]
+        about: merges the values from [file2] into [file1]
         args:
             - file1:
                 index: 1

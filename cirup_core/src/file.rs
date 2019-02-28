@@ -1,18 +1,17 @@
-
 use std::fs;
+use std::io::prelude::*;
 use std::io::Read;
 use std::path::Path;
-use std::io::prelude::*;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
 use uuid::Uuid;
 
-use Resource;
-use std::error::Error;
 use json::JsonFileFormat;
-use resx::ResxFileFormat;
 use restext::RestextFileFormat;
+use resx::ResxFileFormat;
+use std::error::Error;
+use Resource;
 
 pub enum FormatType {
     Unknown,
@@ -32,18 +31,10 @@ pub trait FileFormat {
 
 pub fn get_format_type_from_extension(extension: &str) -> FormatType {
     match extension {
-        JsonFileFormat::EXTENSION => {
-            FormatType::Json
-        },
-        ResxFileFormat::EXTENSION => {
-            FormatType::Resx
-        },
-        RestextFileFormat::EXTENSION => {
-            FormatType::Restext
-        },
-        _ => {
-            FormatType::Unknown
-        }
+        JsonFileFormat::EXTENSION => FormatType::Json,
+        ResxFileFormat::EXTENSION => FormatType::Resx,
+        RestextFileFormat::EXTENSION => FormatType::Restext,
+        _ => FormatType::Unknown,
     }
 }
 
@@ -65,20 +56,18 @@ pub fn save_string_to_file(filename: &str, text: &str) {
 pub fn load_resource_str(text: &str, extension: &str) -> Result<Vec<Resource>, Box<Error>> {
     match extension {
         JsonFileFormat::EXTENSION => {
-            let file_format = JsonFileFormat { };
+            let file_format = JsonFileFormat {};
             file_format.parse_from_str(text)
-        },
-        ResxFileFormat::EXTENSION => {
-            let file_format = ResxFileFormat { };
-            file_format.parse_from_str(text)
-        },
-        RestextFileFormat::EXTENSION => {
-            let file_format = RestextFileFormat { };
-            file_format.parse_from_str(text)
-        },
-        _ => {
-            Ok(Vec::new())
         }
+        ResxFileFormat::EXTENSION => {
+            let file_format = ResxFileFormat {};
+            file_format.parse_from_str(text)
+        }
+        RestextFileFormat::EXTENSION => {
+            let file_format = RestextFileFormat {};
+            file_format.parse_from_str(text)
+        }
+        _ => Ok(Vec::new()),
     }
 }
 
@@ -87,20 +76,18 @@ pub fn load_resource_file(filename: &str) -> Result<Vec<Resource>, Box<Error>> {
     let extension = path.extension().unwrap().to_str().unwrap();
     match extension {
         JsonFileFormat::EXTENSION => {
-            let file_format = JsonFileFormat { };
+            let file_format = JsonFileFormat {};
             file_format.parse_from_file(filename)
-        },
-        ResxFileFormat::EXTENSION => {
-            let file_format = ResxFileFormat { };
-            file_format.parse_from_file(filename)
-        },
-        RestextFileFormat::EXTENSION => {
-            let file_format = RestextFileFormat { };
-            file_format.parse_from_file(filename)
-        },
-        _ => {
-            Ok(Vec::new())
         }
+        ResxFileFormat::EXTENSION => {
+            let file_format = ResxFileFormat {};
+            file_format.parse_from_file(filename)
+        }
+        RestextFileFormat::EXTENSION => {
+            let file_format = RestextFileFormat {};
+            file_format.parse_from_file(filename)
+        }
+        _ => Ok(Vec::new()),
     }
 }
 
@@ -109,20 +96,18 @@ pub fn save_resource_file(filename: &str, resources: &Vec<Resource>) {
     let extension = path.extension().unwrap().to_str().unwrap();
     match extension {
         JsonFileFormat::EXTENSION => {
-            let file_format = JsonFileFormat { };
+            let file_format = JsonFileFormat {};
             file_format.write_to_file(filename, resources)
-        },
-        ResxFileFormat::EXTENSION => {
-            let file_format = ResxFileFormat { };
-            file_format.write_to_file(filename, resources)
-        },
-        RestextFileFormat::EXTENSION => {
-            let file_format = RestextFileFormat { };
-            file_format.write_to_file(filename, resources)
-        },
-        _ => {
-
         }
+        ResxFileFormat::EXTENSION => {
+            let file_format = ResxFileFormat {};
+            file_format.write_to_file(filename, resources)
+        }
+        RestextFileFormat::EXTENSION => {
+            let file_format = RestextFileFormat {};
+            file_format.write_to_file(filename, resources)
+        }
+        _ => {}
     }
 }
 

@@ -1,39 +1,40 @@
-
+extern crate dot_json;
 extern crate serde;
 extern crate serde_json;
-extern crate dot_json;
 
-use serde::{Serialize};
-use serde_json::{Value, Map};
 use dot_json::value_to_dot;
+use serde::Serialize;
+use serde_json::{Map, Value};
 
-use Resource;
-use std::error::Error;
-use file::{FileFormat, FormatType};
 use file::{load_string_from_file, save_string_to_file};
+use file::{FileFormat, FormatType};
+use std::error::Error;
+use Resource;
 
-pub struct JsonFileFormat {
+pub struct JsonFileFormat {}
 
-}
-
-fn json_dot_insert(root_map: &mut Map<String,Value>, name: &str, value: &str) {
+fn json_dot_insert(root_map: &mut Map<String, Value>, name: &str, value: &str) {
     if let Some(dot_index) = name.find('.') {
         let root_path = &name[0..dot_index];
-        let child_path = &name[dot_index+1..name.len()];
+        let child_path = &name[dot_index + 1..name.len()];
 
         if !root_map.contains_key(root_path) {
-            let child_map: Map<String,Value> = Map::new();
+            let child_map: Map<String, Value> = Map::new();
             root_map.insert(root_path.to_string(), Value::Object(child_map));
         }
 
-        let mut child_map = root_map.get_mut(root_path).unwrap().as_object_mut().unwrap();
+        let mut child_map = root_map
+            .get_mut(root_path)
+            .unwrap()
+            .as_object_mut()
+            .unwrap();
         json_dot_insert(&mut child_map, child_path, value);
     } else {
         root_map.insert(name.to_string(), Value::String(value.to_string()));
     }
 }
 
-fn json_to_string_pretty(value: &Map<String,Value>) -> String {
+fn json_to_string_pretty(value: &Map<String, Value>) -> String {
     let writer = Vec::new();
     let formatter = serde_json::ser::PrettyFormatter::with_indent(b"    ");
     let mut ser = serde_json::Serializer::with_formatter(writer, formatter);
@@ -42,7 +43,6 @@ fn json_to_string_pretty(value: &Map<String,Value>) -> String {
 }
 
 impl FileFormat for JsonFileFormat {
-
     const EXTENSION: &'static str = "json";
     const TYPE: FormatType = FormatType::Json;
 
@@ -64,7 +64,7 @@ impl FileFormat for JsonFileFormat {
     }
 
     fn write_to_str(&self, resources: &Vec<Resource>) -> String {
-        let mut root_map: Map<String,Value> = Map::new();
+        let mut root_map: Map<String, Value> = Map::new();
 
         for resource in resources {
             json_dot_insert(&mut root_map, &resource.name, &resource.value);
@@ -98,7 +98,7 @@ fn test_json_parse() {
 }
     "#;
 
-    let file_format = JsonFileFormat { };
+    let file_format = JsonFileFormat {};
 
     let resources = file_format.parse_from_str(&text).unwrap();
 
@@ -129,8 +129,7 @@ fn test_json_parse() {
 
 #[test]
 fn test_json_write() {
-
-    let file_format = JsonFileFormat { };
+    let file_format = JsonFileFormat {};
 
     let resources = vec![
         Resource::new("lblBoat", "I'm on a boat."),

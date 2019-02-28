@@ -1,10 +1,10 @@
 use rusqlite::vtab::{
-    sqlite3_vtab, sqlite3_vtab_cursor, Context, IndexInfo,
-    VTab, VTabConnection, VTabCursor, Values, read_only_module,
-    dequote, Module, CreateVTab};
+    dequote, read_only_module, sqlite3_vtab, sqlite3_vtab_cursor, Context, CreateVTab, IndexInfo,
+    Module, VTab, VTabConnection, VTabCursor, Values,
+};
 
 use rusqlite::types::*;
-use rusqlite::{Connection, Result, Error};
+use rusqlite::{Connection, Error, Result};
 
 use std::os::raw::c_int;
 use std::str;
@@ -14,21 +14,24 @@ use file::load_resource_file;
 fn query_table(filename: &str) -> Vec<Vec<Value>> {
     let mut rows: Vec<Vec<Value>> = Vec::new();
     match load_resource_file(filename) {
-        Ok(val)  => {
+        Ok(val) => {
             for resource in val.iter() {
                 let mut row: Vec<Value> = Vec::new();
                 row.push(Value::from(resource.name.clone()));
                 row.push(Value::from(resource.value.clone()));
                 rows.push(row);
             }
-        },
-        Err(_e) => {}, // TODO: we couldn't parse the file
+        }
+        Err(_e) => {} // TODO: we couldn't parse the file
     };
-    
+
     rows
 }
 
-fn create_schema(column_name: &Vec<&'static str>, column_types: &Vec<&'static str>) -> Option<String> {
+fn create_schema(
+    column_name: &Vec<&'static str>,
+    column_types: &Vec<&'static str>,
+) -> Option<String> {
     let mut schema = None;
     if schema.is_none() {
         let mut sql = String::from("CREATE TABLE x(");
@@ -62,13 +65,13 @@ pub fn register_table(db: &Connection, table: &str, filename: &str) {
     &db.execute_batch(&sql).unwrap();
 }
 
-pub fn create_db()-> Connection {
+pub fn create_db() -> Connection {
     let db = Connection::open_in_memory().unwrap();
     load_module(&db).unwrap();
     db
 }
 
-pub fn init_db(table: &str, filename: &str)-> Connection {
+pub fn init_db(table: &str, filename: &str) -> Connection {
     let db = Connection::open_in_memory().unwrap();
     load_module(&db).unwrap();
     register_table(&db, table, filename);
@@ -124,7 +127,7 @@ impl VTab for CirupTab {
             filename: String::new(),
         };
         let schema;
-        let args= &_args[3..];
+        let args = &_args[3..];
 
         for c_slice in args {
             let (param, value) = try!(CirupTab::parameter(c_slice));
@@ -150,7 +153,9 @@ impl VTab for CirupTab {
         Ok(())
     }
 
-    fn open(&self) -> Result<CirupTabCursor> {Ok(CirupTabCursor::default())}
+    fn open(&self) -> Result<CirupTabCursor> {
+        Ok(CirupTabCursor::default())
+    }
 }
 
 impl CreateVTab for CirupTab {}
@@ -165,22 +170,16 @@ struct CirupTabCursor {
     /// The rowid
     row_id: i64,
     /// columns name
-    cols : Vec<Value>,
+    cols: Vec<Value>,
     /// rows
-    rows : Vec<Vec<Value>>,
+    rows: Vec<Vec<Value>>,
     /// the end of the table
-    eot : bool,
+    eot: bool,
 }
 
 impl VTabCursor for CirupTabCursor {
-
-    fn filter(
-        &mut self,
-        _idx_num: c_int,
-        _idx_str: Option<&str>,
-        _args: &Values,
-    ) -> Result<()> {
-        let cirup_table = unsafe {&*(self.base.pVtab as * const CirupTab)};
+    fn filter(&mut self, _idx_num: c_int, _idx_str: Option<&str>, _args: &Values) -> Result<()> {
+        let cirup_table = unsafe { &*(self.base.pVtab as *const CirupTab) };
         // register table in memory
         if !self.table_in_memory {
             self.rows = query_table(cirup_table.filename.as_str());

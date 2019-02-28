@@ -1,27 +1,28 @@
+use std::error::Error;
 use std::fs;
 use std::path::Path;
-use std::error::Error;
 
 use toml;
 
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Config {
     pub vcs: Vcs,
     pub sync: Sync,
 }
 
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Vcs {
     pub plugin: String,
     pub local_path: String,
     pub remote_path: String,
 }
 
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Sync {
     pub source_language: String,
-    pub source_match: String,
-    pub source_name_match: String,
+    pub target_languages: Vec<String>,
+    pub match_language_file: String,
+    pub match_language_name: String,
     pub source_dir: String,
     pub working_dir: String,
 }
@@ -29,7 +30,15 @@ pub struct Sync {
 impl Config {
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, Box<Error>> {
         let contents = fs::read_to_string(path)?;
-        Config::new_from_string(&contents)
+        let config = Config::new_from_string(&contents)?;
+
+        info!("source language: {}", config.sync.source_language);
+        info!(
+            "target language(s): {}",
+            config.sync.target_languages.join(" ")
+        );
+
+        Ok(config)
     }
 
     pub fn new_from_string(contents: &str) -> Result<Self, Box<Error>> {
@@ -55,8 +64,9 @@ fn config_write() {
         },
         sync: Sync {
             source_language: "en".to_string(),
-            source_match: "\\.json$".to_string(),
-            source_name_match: "(.+?)(\\.[^.]*$|$)".to_string(),
+            target_languages: vec!["fr".to_string(), "de".to_string()],
+            match_language_file: "\\.json$".to_string(),
+            match_language_name: "(.+?)(\\.[^.]*$|$)".to_string(),
             source_dir: "xxx".to_string(),
             working_dir: "xxx".to_string(),
         },
