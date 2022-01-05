@@ -50,9 +50,14 @@ fn convert(file_one: &str, out_file: &str) {
     query.run_interactive(Some(out_file));
 }
 
-fn sort(file_one: &str, out_file: &str) {
+fn sort(file_one: &str, out_file: Option<&str>) {
     let query = query::query_sort(file_one);
-    query.run_interactive(Some(out_file));
+
+    if out_file.is_some() {
+        query.run_interactive(out_file);
+    } else {
+        query.run_interactive(Some(file_one));
+    }
 }
 
 fn run(matches: &clap::ArgMatches, config: Option<Config>) -> Result<(), Box<dyn Error>> {
@@ -111,7 +116,7 @@ fn run(matches: &clap::ArgMatches, config: Option<Config>) -> Result<(), Box<dyn
         ("file-sort", Some(args)) => {
             sort(
                 args.value_of("file").unwrap(),
-                args.value_of("output").unwrap(),
+                args.value_of("output"),
             );
             Ok(())
         }

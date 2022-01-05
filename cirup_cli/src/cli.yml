@@ -82,7 +82,7 @@ subcommands:
             - output:
                 index: 2
                 takes_value: true
-                required: true
+                required: false
     - file-diff:
         about: "output keys that have values in [file1] but not in [file2]. 
         useful for finding missing translations."
