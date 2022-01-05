@@ -13,10 +13,10 @@ use shell;
 const DEFAULT_BRANCH: &str = "master";
 
 pub trait Vcs {
-    fn init_repo(&self) -> Result<(), Box<Error>>;
-    fn current_revision(&self) -> Result<String, Box<Error>>;
-    fn pull(&self) -> Result<(), Box<Error>>;
-    fn push(&self) -> Result<(), Box<Error>>;
+    fn init_repo(&self) -> Result<(), Box<dyn Error>>;
+    fn current_revision(&self) -> Result<String, Box<dyn Error>>;
+    fn pull(&self) -> Result<(), Box<dyn Error>>;
+    fn push(&self) -> Result<(), Box<dyn Error>>;
     fn log(
         &self,
         filespec: &str,
@@ -25,14 +25,14 @@ pub trait Vcs {
         new_commit: Option<&str>,
         inclusive: bool,
         limit: u32,
-    ) -> Result<(), Box<Error>>;
+    ) -> Result<(), Box<dyn Error>>;
     fn diff(
         &self,
         filespec: &str,
         old_commit: &str,
         new_commit: Option<&str>,
-    ) -> Result<(), Box<Error>>;
-    fn show(&self, filespec: &str, commit: Option<&str>, output: &str) -> Result<(), Box<Error>>;
+    ) -> Result<(), Box<dyn Error>>;
+    fn show(&self, filespec: &str, commit: Option<&str>, output: &str) -> Result<(), Box<dyn Error>>;
 }
 
 pub mod vcs_type {
@@ -59,13 +59,13 @@ impl Default for VcsMetadata {
 }
 
 impl VcsMetadata {
-    fn run(&self, args: &[&str]) -> Result<(), Box<Error>> {
+    fn run(&self, args: &[&str]) -> Result<(), Box<dyn Error>> {
         shell::status(&self.executable, Path::new(&self.local_path), args)?;
 
         Ok(())
     }
 
-    fn output(&self, args: &[&str]) -> Result<String, Box<Error>> {
+    fn output(&self, args: &[&str]) -> Result<String, Box<dyn Error>> {
         shell::output(&self.executable, Path::new(&self.local_path), args)
     }
 
@@ -75,7 +75,7 @@ impl VcsMetadata {
     }
 }
 
-pub fn new(config: &config::Config) -> Result<Box<Vcs>, Box<Error>> {
+pub fn new(config: &config::Config) -> Result<Box<dyn Vcs>, Box<dyn Error>> {
     let mut meta = VcsMetadata {
         local_path: config.vcs.local_path.to_string(),
         remote_path: config.vcs.remote_path.to_string(),
@@ -108,7 +108,7 @@ pub struct Git {
 }
 
 impl Vcs for Git {
-    fn init_repo(&self) -> Result<(), Box<Error>> {
+    fn init_repo(&self) -> Result<(), Box<dyn Error>> {
         if !self.meta.is_repo() {
             info!(
                 "{} does not appear to be a git repository. Cloning...",
@@ -134,11 +134,11 @@ impl Vcs for Git {
         Ok(())
     }
 
-    fn current_revision(&self) -> Result<String, Box<Error>> {
+    fn current_revision(&self) -> Result<String, Box<dyn Error>> {
         self.meta.output(&["rev-parse", "--short", "HEAD"])
     }
 
-    fn pull(&self) -> Result<(), Box<Error>> {
+    fn pull(&self) -> Result<(), Box<dyn Error>> {
         self.init_repo()?;
 
         debug!("vcs pull start");
@@ -160,7 +160,7 @@ impl Vcs for Git {
         Ok(())
     }
 
-    fn push(&self) -> Result<(), Box<Error>> {
+    fn push(&self) -> Result<(), Box<dyn Error>> {
         unimplemented!();
     }
 
@@ -172,7 +172,7 @@ impl Vcs for Git {
         new_commit: Option<&str>,
         inclusive: bool,
         limit: u32
-    ) -> Result<(), Box<Error>> {
+    ) -> Result<(), Box<dyn Error>> {
         let format = format!("--pretty=format:%h - %aI - %an - %s");
         let commit: String;
 
@@ -216,7 +216,7 @@ impl Vcs for Git {
         filespec: &str,
         old_commit: &str,
         new_commit: Option<&str>,
-    ) -> Result<(), Box<Error>> {
+    ) -> Result<(), Box<dyn Error>> {
         let mut args: Vec<&str> = Vec::new();
         args.push("diff");
         args.push(old_commit);
@@ -230,7 +230,7 @@ impl Vcs for Git {
         return self.meta.run(&args);
     }
 
-    fn show(&self, filespec: &str, commit: Option<&str>, output: &str) -> Result<(), Box<Error>> {
+    fn show(&self, filespec: &str, commit: Option<&str>, output: &str) -> Result<(), Box<dyn Error>> {
         let show = format!(
             "{}:{}",
             if commit.is_none() {
@@ -270,7 +270,7 @@ struct Log {
 }
 
 impl LogEntry {
-    fn iso_formatted_date(&self) -> Result<String, Box<Error>> {
+    fn iso_formatted_date(&self) -> Result<String, Box<dyn Error>> {
         let dt = Utc.datetime_from_str(self.date.trim_end_matches("Z"), "%Y-%m-%dT%H:%M:%S%.6f")?;
         return Ok(dt.to_rfc3339_opts(SecondsFormat::Secs, false))
     }
@@ -288,7 +288,7 @@ fn iso_formatted_date_test() {
 }
 
 impl Svn {
-    fn status_has_conflicts(status: &str) -> Result<bool, Box<Error>> {
+    fn status_has_conflicts(status: &str) -> Result<bool, Box<dyn Error>> {
         Ok(Regex::new(r"(?m)^C")?.is_match(status))
     }
 }
@@ -318,7 +318,7 @@ C    MsgResources.pl.resx"
 }
 
 impl Vcs for Svn {
-    fn init_repo(&self) -> Result<(), Box<Error>> {
+    fn init_repo(&self) -> Result<(), Box<dyn Error>> {
         if !self.meta.is_repo() {
             info!(
                 "{} does not appear to be a svn repository. Checking out...",
@@ -335,11 +335,11 @@ impl Vcs for Svn {
         Ok(())
     }
 
-    fn current_revision(&self) -> Result<String, Box<Error>> {
+    fn current_revision(&self) -> Result<String, Box<dyn Error>> {
         self.meta.output(&["info", "--show-item", "revision"])
     }
 
-    fn pull(&self) -> Result<(), Box<Error>> {
+    fn pull(&self) -> Result<(), Box<dyn Error>> {
         self.init_repo()?;
 
         debug!("vcs pull start");
@@ -366,7 +366,7 @@ impl Vcs for Svn {
         Ok(())
     }
 
-    fn push(&self) -> Result<(), Box<Error>> {
+    fn push(&self) -> Result<(), Box<dyn Error>> {
         unimplemented!();
     }
 
@@ -378,7 +378,7 @@ impl Vcs for Svn {
         new_commit: Option<&str>,
         _inclusive: bool,
         limit: u32
-    ) -> Result<(), Box<Error>> {
+    ) -> Result<(), Box<dyn Error>> {
         let commit = format!(
             "{}:{}",
             if new_commit.is_some() {
@@ -424,7 +424,7 @@ impl Vcs for Svn {
         filespec: &str,
         old_commit: &str,
         new_commit: Option<&str>,
-    ) -> Result<(), Box<Error>> {
+    ) -> Result<(), Box<dyn Error>> {
         let commit = format!(
             "{}:{}",
             old_commit,
@@ -438,7 +438,7 @@ impl Vcs for Svn {
         return self.meta.run(&["diff", "--revision", &commit, filespec]);
     }
 
-    fn show(&self, filespec: &str, commit: Option<&str>, output: &str) -> Result<(), Box<Error>> {
+    fn show(&self, filespec: &str, commit: Option<&str>, output: &str) -> Result<(), Box<dyn Error>> {
         let mut args: Vec<&str> = Vec::new();
         args.push("cat");
         args.push(filespec);

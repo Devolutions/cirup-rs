@@ -85,7 +85,7 @@ impl RevisionRange {
         revision_range
     }
 
-    pub fn append_to_file_name(&self, path: PathBuf) -> Result<PathBuf, Box<Error>> {
+    pub fn append_to_file_name(&self, path: PathBuf) -> Result<PathBuf, Box<dyn Error>> {
         let rev = format!("~{}~", self.to_string());
         let file_stem = path.file_stem().unwrap_or(OsStr::new(""));
         let mut file_name = file_stem.to_os_string();

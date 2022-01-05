@@ -46,7 +46,7 @@ impl FileFormat for JsonFileFormat {
     const EXTENSION: &'static str = "json";
     const TYPE: FormatType = FormatType::Json;
 
-    fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<Error>> {
+    fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<dyn Error>> {
         let mut resources: Vec<Resource> = Vec::new();
         let root_value: Value = serde_json::from_str(text)?;
         let root_value_dot = value_to_dot(&root_value);
@@ -58,7 +58,7 @@ impl FileFormat for JsonFileFormat {
         Ok(resources)
     }
 
-    fn parse_from_file(&self, filename: &str) -> Result<Vec<Resource>, Box<Error>> {
+    fn parse_from_file(&self, filename: &str) -> Result<Vec<Resource>, Box<dyn Error>> {
         let text = load_string_from_file(filename)?;
         self.parse_from_str(text.as_ref())
     }

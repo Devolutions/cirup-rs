@@ -23,8 +23,8 @@ pub enum FormatType {
 pub trait FileFormat {
     const EXTENSION: &'static str;
     const TYPE: FormatType;
-    fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<Error>>;
-    fn parse_from_file(&self, filename: &str) -> Result<Vec<Resource>, Box<Error>>;
+    fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<dyn Error>>;
+    fn parse_from_file(&self, filename: &str) -> Result<Vec<Resource>, Box<dyn Error>>;
     fn write_to_str(&self, resources: &Vec<Resource>) -> String;
     fn write_to_file(&self, filename: &str, resources: &Vec<Resource>);
 }
@@ -38,7 +38,7 @@ pub fn get_format_type_from_extension(extension: &str) -> FormatType {
     }
 }
 
-pub fn load_string_from_file(filename: &str) -> Result<String, Box<Error>> {
+pub fn load_string_from_file(filename: &str) -> Result<String, Box<dyn Error>> {
     if let Some(text) = vfile_get(filename) {
         return Ok(text);
     }
@@ -53,7 +53,7 @@ pub fn save_string_to_file(filename: &str, text: &str) {
     file.write_all(text.as_bytes()).unwrap();
 }
 
-pub fn load_resource_str(text: &str, extension: &str) -> Result<Vec<Resource>, Box<Error>> {
+pub fn load_resource_str(text: &str, extension: &str) -> Result<Vec<Resource>, Box<dyn Error>> {
     match extension {
         JsonFileFormat::EXTENSION => {
             let file_format = JsonFileFormat {};
@@ -71,7 +71,7 @@ pub fn load_resource_str(text: &str, extension: &str) -> Result<Vec<Resource>, B
     }
 }
 
-pub fn load_resource_file(filename: &str) -> Result<Vec<Resource>, Box<Error>> {
+pub fn load_resource_file(filename: &str) -> Result<Vec<Resource>, Box<dyn Error>> {
     let path = Path::new(filename);
     let extension = path.extension().unwrap().to_str().unwrap();
     match extension {

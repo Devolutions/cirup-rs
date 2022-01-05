@@ -28,7 +28,7 @@ pub struct Sync {
 }
 
 impl Config {
-    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, Box<Error>> {
+    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn Error>> {
         let contents = fs::read_to_string(path)?;
         let config = Config::new_from_string(&contents)?;
 
@@ -41,7 +41,7 @@ impl Config {
         Ok(config)
     }
 
-    pub fn new_from_string(contents: &str) -> Result<Self, Box<Error>> {
+    pub fn new_from_string(contents: &str) -> Result<Self, Box<dyn Error>> {
         let config: Config = toml::from_str(&contents)?;
         Ok(config)
     }
