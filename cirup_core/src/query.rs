@@ -181,6 +181,7 @@ const SUBTRACT_QUERY: &str = r"
         WHERE A.key NOT IN 
             (SELECT B.key FROM B)";
 const CONVERT_QUERY: &str = "SELECT * FROM A";
+const SORT_QUERY: &str = "SELECT * FROM A ORDER BY A.key";
 
 pub fn query_print(file: &str) -> CirupQuery {
     CirupQuery::new(PRINT_QUERY, file, None)
@@ -188,6 +189,10 @@ pub fn query_print(file: &str) -> CirupQuery {
 
 pub fn query_convert(file: &str) -> CirupQuery {
     CirupQuery::new(CONVERT_QUERY, file, None)
+}
+
+pub fn query_sort(file: &str) -> CirupQuery {
+    CirupQuery::new(SORT_QUERY, file, None)
 }
 
 pub fn query_diff(file_one: &str, file_two: &str) -> CirupQuery {

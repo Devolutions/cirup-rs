@@ -50,6 +50,11 @@ fn convert(file_one: &str, out_file: &str) {
     query.run_interactive(Some(out_file));
 }
 
+fn sort(file_one: &str, out_file: &str) {
+    let query = query::query_sort(file_one);
+    query.run_interactive(Some(out_file));
+}
+
 fn run(matches: &clap::ArgMatches, config: Option<Config>) -> Result<(), Box<Error>> {
     match matches.subcommand() {
         ("file-print", Some(args)) => {
@@ -98,6 +103,13 @@ fn run(matches: &clap::ArgMatches, config: Option<Config>) -> Result<(), Box<Err
         }
         ("file-convert", Some(args)) => {
             convert(
+                args.value_of("file").unwrap(),
+                args.value_of("output").unwrap(),
+            );
+            Ok(())
+        }
+        ("file-sort", Some(args)) => {
+            sort(
                 args.value_of("file").unwrap(),
                 args.value_of("output").unwrap(),
             );
