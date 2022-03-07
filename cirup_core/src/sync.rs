@@ -16,7 +16,7 @@ use vcs;
 use vcs::Vcs;
 
 pub struct Sync {
-    pub vcs: Box<Vcs>,
+    pub vcs: Box<dyn Vcs>,
     languages: Vec<LanguageFile>,
     source_language: String,
     source_path: String,
@@ -47,7 +47,7 @@ impl Default for LanguageFile {
 }
 
 impl LanguageFile {
-    fn load<T: AsRef<Path>>(path: T, match_regex: &Regex, lang_regex: &Regex,) -> Result<LanguageFile, Box<Error>> {
+    fn load<T: AsRef<Path>>(path: T, match_regex: &Regex, lang_regex: &Regex,) -> Result<LanguageFile, Box<dyn Error>> {
         let path_ref = PathBuf::from(path.as_ref());
         if !path_ref.is_file() {
             Err("invalid language file")?;
@@ -87,7 +87,7 @@ fn find_languages(
     source_dir: &PathBuf,
     match_regex: &Regex,
     lang_regex: &Regex,
-) -> Result<Vec<LanguageFile>, Box<Error>> {
+) -> Result<Vec<LanguageFile>, Box<dyn Error>> {
     let mut languages: Vec<LanguageFile> = Vec::new();
 
     for entry in fs::read_dir(&source_dir)? {
@@ -100,7 +100,7 @@ fn find_languages(
 }
 
 impl Sync {
-    pub fn new(config: &Config) -> Result<Self, Box<Error>> {
+    pub fn new(config: &Config) -> Result<Self, Box<dyn Error>> {
         let vcs = vcs::new(config)?;
         vcs.pull()?;
 
@@ -176,7 +176,7 @@ impl Sync {
         &self,
         rev: &RevisionRange,
         show_changes: bool,
-    ) -> Result<PathBuf, Box<Error>> {
+    ) -> Result<PathBuf, Box<dyn Error>> {
         debug!("preparing source file for revision(s) {}", rev);
         let source = self.source_language().unwrap();
         let source_path_vcs = self.vcs_relative_path(&source.file_name);
@@ -238,7 +238,7 @@ impl Sync {
         &self,
         old_commit: Option<&str>,
         new_commit: Option<&str>,
-    ) -> Result<(), Box<Error>> {
+    ) -> Result<(), Box<dyn Error>> {
         let current_rev = sanitized(&self.vcs.current_revision()?).to_string();
         let rev = RevisionRange::new(
             old_commit,
@@ -332,7 +332,7 @@ impl Sync {
         old_commit: Option<&str>,
         new_commit: Option<&str>,
         show_changes: bool,
-    ) -> Result<(), Box<Error>> {
+    ) -> Result<(), Box<dyn Error>> {
         let current_rev = sanitized(&self.vcs.current_revision()?);
         let rev = RevisionRange::new(
             old_commit,

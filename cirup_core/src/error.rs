@@ -16,7 +16,7 @@ impl fmt::Display for CirupError {
 }
 
 impl error::Error for CirupError {
-    fn cause(&self) -> Option<&error::Error> {
+    fn cause(&self) -> Option<&dyn error::Error> {
         match *self {
             CirupError::Io(ref err) => Some(err),
         }

@@ -71,6 +71,18 @@ subcommands:
                 index: 2
                 takes_value: true
                 required: true
+    - file-sort:
+        about: "sort [file] by key name. 
+        possible extensions are .json, .resx and .restext"
+        args:
+            - file:
+                index: 1
+                takes_value: true
+                required: true
+            - output:
+                index: 2
+                takes_value: true
+                required: false
     - file-diff:
         about: "output keys that have values in [file1] but not in [file2]. 
         useful for finding missing translations."

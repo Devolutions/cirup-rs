@@ -20,7 +20,7 @@ impl FileFormat for ResxFileFormat {
     const EXTENSION: &'static str = "resx";
     const TYPE: FormatType = FormatType::Resx;
 
-    fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<Error>> {
+    fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<dyn Error>> {
         let mut resources: Vec<Resource> = Vec::new();
         let bytes = without_bom(text);
 
@@ -43,7 +43,7 @@ impl FileFormat for ResxFileFormat {
         Ok(resources)
     }
 
-    fn parse_from_file(&self, filename: &str) -> Result<Vec<Resource>, Box<Error>> {
+    fn parse_from_file(&self, filename: &str) -> Result<Vec<Resource>, Box<dyn Error>> {
         let text = load_string_from_file(filename)?;
         self.parse_from_str(text.as_ref())
     }
