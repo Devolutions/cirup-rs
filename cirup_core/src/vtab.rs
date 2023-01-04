@@ -96,7 +96,7 @@ struct CirupTab {
 
 impl CirupTab {
     fn parameter(c_slice: &[u8]) -> Result<(&str, &str)> {
-        let arg = try!(str::from_utf8(c_slice)).trim();
+        let arg = str::from_utf8(c_slice)?.trim();
         let mut split = arg.split('=');
         if let Some(key) = split.next() {
             if let Some(value) = split.next() {
@@ -130,7 +130,7 @@ impl VTab for CirupTab {
         let args = &_args[3..];
 
         for c_slice in args {
-            let (param, value) = try!(CirupTab::parameter(c_slice));
+            let (param, value) = CirupTab::parameter(c_slice)?;
             match param {
                 "filename" => {
                     vtab.filename = value.to_string();

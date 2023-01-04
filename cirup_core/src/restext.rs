@@ -8,7 +8,7 @@ use file::{FileFormat, FormatType};
 use std::error::Error;
 use Resource;
 
-/**
+/*
  * .restext file format:
  * https://docs.microsoft.com/en-us/dotnet/framework/tools/resgen-exe-resource-file-generator
  * https://docs.microsoft.com/en-us/dotnet/framework/resources/creating-resource-files-for-desktop-apps
