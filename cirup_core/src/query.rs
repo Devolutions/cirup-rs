@@ -1,6 +1,4 @@
-use prettytable::cell::Cell;
-use prettytable::row::Row;
-use prettytable::Table;
+use prettytable::{Cell, Row, Table};
 
 use rusqlite::types::*;
 use rusqlite::Rows;
