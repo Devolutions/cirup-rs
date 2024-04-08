@@ -7,7 +7,7 @@ use rusqlite::{Connection, Error, Statement};
 use file::{save_resource_file, vfile_set};
 use vtab::{create_db, init_db, register_table};
 
-use Resource;
+use {Resource, Triple};
 
 pub fn print_pretty(columns: Vec<String>, values: &mut Rows) {
     let mut row = Row::empty();
@@ -112,6 +112,28 @@ pub fn execute_query_resource(db: &Connection, query: &str) -> Vec<Resource> {
     resources
 }
 
+pub fn execute_query_triple(db: &Connection, query: &str) -> Vec<Triple> {
+    let mut resources: Vec<Triple> = Vec::new();
+    let mut statement = db.prepare(&query).unwrap();
+    let mut response = statement.query(&[]).unwrap();
+
+    loop {
+        if let Some(v) = response.next() {
+            if let Some(res) = v.ok() {
+                let name = &res.get::<usize, String>(0);
+                let value = &res.get::<usize, String>(1);
+                let base = &res.get::<usize, String>(2);
+                let resource = Triple::new(name, value, base);
+                resources.push(resource);
+            }
+        } else {
+            break;
+        }
+    }
+
+    resources
+}
+
 pub fn query_file(input: &str, table: &str, query: &str) {
     let db = init_db(table, input);
     execute_query(&db, query);
@@ -138,6 +160,10 @@ impl CirupEngine {
 
     pub fn query_resource(&self, query: &str) -> Vec<Resource> {
         execute_query_resource(&self.db, query)
+    }
+
+    pub fn query_triple(&self, query: &str) -> Vec<Triple> {
+        execute_query_triple(&self.db, query)
     }
 
     pub fn query(&self, query: &str) {
@@ -284,4 +310,27 @@ fn test_query_subtract() {
 
     let actual = engine.query_resource("SELECT * FROM A WHERE A.key NOT IN (SELECT B.key FROM B)");
     assert_eq!(actual, expected);
+}
+
+#[test]
+fn test_query_diff_with_base() {
+    let engine = CirupEngine::new();
+    engine.register_table_from_str("old", "test_old.resx", include_str!("../test/test_old.resx"));
+    engine.register_table_from_str("new", "test_new.resx", include_str!("../test/test_new.resx"));
+    engine.register_table_from_str("base", "test.resx", include_str!("../test/test.resx"));
+
+    let triples = engine.query_triple(r"SELECT new.key, new.val, base.val 
+    FROM new 
+    LEFT OUTER JOIN old ON new.key = old.key 
+    LEFT OUTER JOIN base ON new.key = base.key 
+    WHERE (old.val IS NULL)");
+
+    for triple in triples.iter() {
+        println!("key: {}", triple.name);
+        println!("value: {}", triple.value);
+        println!("base: {}", triple.base);
+        println!("");
+    };
+
+    assert_eq!(triples.len(), 2);
 }

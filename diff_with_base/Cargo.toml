@@ -1,0 +1,15 @@
+[package]
+name = "diff_with_base"
+version = "0.1.0"
+authors = ["Sebastien Duquette <sduquette@devolutions.net>"]
+edition = "2018"
+
+[[bin]]
+name = "diff_with_base"
+path = "main.rs"
+
+[dependencies]
+
+[dependencies.cirup_core]
+path = "../cirup_core"
+
