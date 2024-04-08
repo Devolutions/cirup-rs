@@ -60,6 +60,11 @@ fn sort(file_one: &str, out_file: Option<&str>) {
     }
 }
 
+fn diff_with_base(old: &str, new: &str, base: &str) {
+    let query = query::query_diff_with_base(old, new, base);
+    query.run_triple_interactive();
+}
+
 fn run(matches: &clap::ArgMatches, config: Option<Config>) -> Result<(), Box<dyn Error>> {
     match matches.subcommand() {
         ("file-print", Some(args)) => {
@@ -173,6 +178,14 @@ fn run(matches: &clap::ArgMatches, config: Option<Config>) -> Result<(), Box<dyn
             }
             None => Err("configuration file required")?,
         },
+        ("diff-with-base", Some(args)) => {
+            diff_with_base(
+                args.value_of("old").unwrap(),
+                args.value_of("new").unwrap(),
+                args.value_of("base").unwrap(),
+            );
+            Ok(())
+        }        
         _ => Err("unrecognised subcommand")?,
     }
 }

@@ -189,13 +189,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "diff_with_base"
-version = "0.1.0"
-dependencies = [
- "cirup_core",
-]
-
-[[package]]
 name = "dirs-next"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

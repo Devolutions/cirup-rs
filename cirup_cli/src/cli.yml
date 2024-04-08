@@ -140,3 +140,18 @@ subcommands:
             - output:
                 index: 3
                 takes_value: true
+    - diff-with-base:
+        about: "output keys that have values in [new] but not in [old] with the value in [base]"
+        args:
+            - old:
+                index: 1
+                takes_value: true
+                required: true
+            - new:
+                index: 2
+                takes_value: true
+                required: true
+            - base:
+                index: 3
+                takes_value: true
+                required: true

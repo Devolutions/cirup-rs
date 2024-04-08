@@ -54,6 +54,15 @@ pub fn print_resources_pretty(resources: &Vec<Resource>) {
     println!("{}", table);
 }
 
+pub fn print_triples_pretty(triples: &Vec<Triple>) {
+    for triple in triples.iter() {
+        println!("name: {}", triple.name);
+        println!("base: {}", triple.base);
+        println!("value: {}", triple.value);
+        println!("");
+    };
+}
+
 fn get_statement_column_names(statement: &Statement) -> Vec<String> {
     let mut column_names = Vec::new();
     for column_name in statement.column_names().iter() {
@@ -182,6 +191,12 @@ const DIFF_QUERY: &str = r"
         FROM A 
         LEFT OUTER JOIN B ON A.key = B.key 
         WHERE (B.val IS NULL)";
+const DIFF_WITH_BASE_QUERY: &str = r"
+        SELECT B.key, B.val, C.val 
+        FROM B 
+        LEFT OUTER JOIN A ON B.key = A.key 
+        INNER JOIN C ON B.key = C.key 
+        WHERE (A.val IS NULL)";
 const CHANGE_QUERY: &str = r"
         SELECT A.key, A.val, B.val 
         FROM A 
@@ -208,44 +223,52 @@ const CONVERT_QUERY: &str = "SELECT * FROM A";
 const SORT_QUERY: &str = "SELECT * FROM A ORDER BY A.key";
 
 pub fn query_print(file: &str) -> CirupQuery {
-    CirupQuery::new(PRINT_QUERY, file, None)
+    CirupQuery::new(PRINT_QUERY, file, None, None)
 }
 
 pub fn query_convert(file: &str) -> CirupQuery {
-    CirupQuery::new(CONVERT_QUERY, file, None)
+    CirupQuery::new(CONVERT_QUERY, file, None, None)
 }
 
 pub fn query_sort(file: &str) -> CirupQuery {
-    CirupQuery::new(SORT_QUERY, file, None)
+    CirupQuery::new(SORT_QUERY, file, None, None)
 }
 
 pub fn query_diff(file_one: &str, file_two: &str) -> CirupQuery {
-    CirupQuery::new(DIFF_QUERY, file_one, Some(file_two))
+    CirupQuery::new(DIFF_QUERY, file_one, Some(file_two), None)
+}
+
+pub fn query_diff_with_base(old: &str, new: &str, base: &str) -> CirupQuery {
+    CirupQuery::new(DIFF_WITH_BASE_QUERY, old, Some(new), Some(base))
 }
 
 pub fn query_change(file_one: &str, file_two: &str) -> CirupQuery {
-    CirupQuery::new(CHANGE_QUERY, file_one, Some(file_two))
+    CirupQuery::new(CHANGE_QUERY, file_one, Some(file_two), None)
 }
 
 pub fn query_merge(file_one: &str, file_two: &str) -> CirupQuery {
-    CirupQuery::new(MERGE_QUERY, file_one, Some(file_two))
+    CirupQuery::new(MERGE_QUERY, file_one, Some(file_two), None)
 }
 
 pub fn query_intersect(file_one: &str, file_two: &str) -> CirupQuery {
-    CirupQuery::new(INTERSECT_QUERY, file_one, Some(file_two))
+    CirupQuery::new(INTERSECT_QUERY, file_one, Some(file_two), None)
 }
 
 pub fn query_subtract(file_one: &str, file_two: &str) -> CirupQuery {
-    CirupQuery::new(SUBTRACT_QUERY, file_one, Some(file_two))
+    CirupQuery::new(SUBTRACT_QUERY, file_one, Some(file_two), None)
 }
 
 impl CirupQuery {
-    pub fn new(query: &str, file_one: &str, file_two: Option<&str>) -> Self {
+    pub fn new(query: &str, file_one: &str, file_two: Option<&str>, file_three: Option<&str>) -> Self {
         let engine = CirupEngine::new();
         engine.register_table_from_file("A", file_one);
 
         if file_two.is_some() {
             engine.register_table_from_file("B", file_two.unwrap());
+        }
+
+        if file_two.is_some() {
+            engine.register_table_from_file("C", file_three.unwrap());
         }
 
         CirupQuery {
@@ -258,6 +281,10 @@ impl CirupQuery {
         return self.engine.query_resource(&self.query);
     }
 
+    pub fn run_triple(&self) -> Vec<Triple> {
+        return self.engine.query_triple(&self.query);
+    }
+
     pub fn run_interactive(&self, out_file: Option<&str>) {
         let resources = self.run();
 
@@ -266,6 +293,11 @@ impl CirupQuery {
         } else {
             print_resources_pretty(&resources);
         }
+    }
+
+    pub fn run_triple_interactive(&self) {
+        let triples = self.run_triple();
+        print_triples_pretty(&triples);
     }
 }
 
@@ -315,22 +347,14 @@ fn test_query_subtract() {
 #[test]
 fn test_query_diff_with_base() {
     let engine = CirupEngine::new();
-    engine.register_table_from_str("old", "test_old.resx", include_str!("../test/test_old.resx"));
-    engine.register_table_from_str("new", "test_new.resx", include_str!("../test/test_new.resx"));
-    engine.register_table_from_str("base", "test.resx", include_str!("../test/test.resx"));
+    engine.register_table_from_str("A", "test_old.resx", include_str!("../test/test_old.resx"));
+    engine.register_table_from_str("B", "test_new.resx", include_str!("../test/test_new.resx"));
+    engine.register_table_from_str("C", "test.resx", include_str!("../test/test.resx"));
 
-    let triples = engine.query_triple(r"SELECT new.key, new.val, base.val 
-    FROM new 
-    LEFT OUTER JOIN old ON new.key = old.key 
-    LEFT OUTER JOIN base ON new.key = base.key 
-    WHERE (old.val IS NULL)");
-
-    for triple in triples.iter() {
-        println!("key: {}", triple.name);
-        println!("value: {}", triple.value);
-        println!("base: {}", triple.base);
-        println!("");
-    };
+    let triples = engine.query_triple(DIFF_WITH_BASE_QUERY);
 
     assert_eq!(triples.len(), 2);
+    assert_eq!(triples[0].name, String::from("lblYolo"));
+    assert_eq!(triples[0].base, String::from("You only live once"));
+    assert_eq!(triples[0].value, String::from("Juste une vie a vivre"));
 }

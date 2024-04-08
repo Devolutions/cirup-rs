@@ -276,6 +276,7 @@ impl Sync {
                     query_string,
                     &source_path_out.to_string_lossy(),
                     Some(&translation_file.path.to_string_lossy()),
+                    None
                 );
                 let file_path = rev.append_to_file_name(
                     Path::new(self.temp_dir.path()).join(&translation_file.file_name),
@@ -380,6 +381,7 @@ impl Sync {
                     query_string,
                     &source_path_out.to_string_lossy(),
                     Some(&file_path.to_string_lossy()),
+                    None
                 );
             }
 

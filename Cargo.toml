@@ -1,7 +1,6 @@
 [workspace]
 members = [
     "cirup_cli",
-    "cirup_core",
-    "diff_with_base"
+    "cirup_core"
 ]
 
