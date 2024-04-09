@@ -24,6 +24,10 @@ extern crate lazy_static;
 mod resource;
 use resource::Resource;
 
+mod triple;
+use triple::Triple;
+
+
 pub mod config;
 mod error;
 mod shell;
