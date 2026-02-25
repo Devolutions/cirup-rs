@@ -2,7 +2,7 @@
 name = "cirup_core"
 version = "0.1.0"
 authors = ["Marc-André Moreau <marcandre.moreau@gmail.com>"]
-edition = "2018"
+edition = "2024"
 
 [dependencies]
 chrono = "0.4"
