@@ -1,16 +1,16 @@
 use std::fs;
-use std::io::prelude::*;
 use std::io::Read;
+use std::io::prelude::*;
 use std::path::Path;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+use crate::Resource;
 use crate::json::JsonFileFormat;
 use crate::restext::RestextFileFormat;
 use crate::resx::ResxFileFormat;
 use std::error::Error;
-use crate::Resource;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum FormatType {
@@ -151,9 +151,6 @@ fn test_vfile() {
 fn format_type_from_extension() {
     assert_eq!(get_format_type_from_extension("json"), FormatType::Json);
     assert_eq!(get_format_type_from_extension("resx"), FormatType::Resx);
-    assert_eq!(
-        get_format_type_from_extension("restext"),
-        FormatType::Restext
-    );
+    assert_eq!(get_format_type_from_extension("restext"), FormatType::Restext);
     assert_eq!(get_format_type_from_extension("txt"), FormatType::Unknown);
 }

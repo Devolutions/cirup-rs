@@ -26,8 +26,8 @@ impl PartialEq for RevisionRange {
 impl Eq for RevisionRange {}
 
 impl fmt::Display for RevisionRange {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.format_range())
     }
 }
 
@@ -47,7 +47,7 @@ impl RevisionRange {
         self.new_rev.as_ref().map(String::as_str)
     }
 
-    fn to_string(&self) -> String {
+    fn format_range(&self) -> String {
         format!(
             "{}{}",
             self.old_rev.as_ref().unwrap_or(&String::default()),
@@ -66,11 +66,7 @@ impl RevisionRange {
 
     fn from_string(string: &str) -> RevisionRange {
         let mut revision_range = RevisionRange::default();
-        let split = string
-            .split("-")
-            .take(2)
-            .filter(|x| !x.is_empty())
-            .collect::<Vec<_>>();
+        let split = string.split("-").take(2).filter(|x| !x.is_empty()).collect::<Vec<_>>();
 
         if let Some(y) = split.get(1) {
             revision_range.new_rev = Some(y.to_string());
@@ -86,7 +82,7 @@ impl RevisionRange {
     }
 
     pub fn append_to_file_name(&self, path: PathBuf) -> Result<PathBuf, Box<dyn Error>> {
-        let rev = format!("~{}~", self.to_string());
+        let rev = format!("~{}~", self.format_range());
         let file_stem = path.file_stem().unwrap_or(OsStr::new(""));
         let mut file_name = file_stem.to_os_string();
 
@@ -109,10 +105,7 @@ impl RevisionRange {
         };
         let file_stem = path.file_stem().unwrap_or(OsStr::new(""));
         let file_name = file_stem.to_string_lossy();
-        let mut split = file_name
-            .split(".")
-            .filter(|x| !x.is_empty())
-            .collect::<Vec<_>>();
+        let mut split = file_name.split(".").filter(|x| !x.is_empty()).collect::<Vec<_>>();
 
         if split.len() > 1 {
             let revision = split.pop().unwrap();
@@ -190,14 +183,12 @@ fn revision_range_append_to_file_name_test() {
 #[test]
 
 fn revision_range_extract_from_file_name_test() {
-    let (revision, path) =
-        RevisionRange::extract_from_file_name(PathBuf::from("/test/path/myfile.~r123-r456~.resx"));
+    let (revision, path) = RevisionRange::extract_from_file_name(PathBuf::from("/test/path/myfile.~r123-r456~.resx"));
     assert_eq!(revision.old_rev, Some("r123".to_string()));
     assert_eq!(revision.new_rev, Some("r456".to_string()));
     assert_eq!(path, PathBuf::from("/test/path/myfile.resx"));
-    let (revision, path) = RevisionRange::extract_from_file_name(PathBuf::from(
-        "/test/path/myfile.not.a.revision.resx",
-    ));
+    let (revision, path) =
+        RevisionRange::extract_from_file_name(PathBuf::from("/test/path/myfile.not.a.revision.resx"));
     assert_eq!(revision.old_rev, None);
     assert_eq!(revision.new_rev, None);
     assert_eq!(path, PathBuf::from("/test/path/myfile.not.a.revision.resx"));

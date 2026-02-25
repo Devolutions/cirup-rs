@@ -33,3 +33,6 @@ features = ["vtab", "bundled"]
 [dependencies.treexml]
 git = "https://github.com/awakecoding/treexml-rs.git"
 branch = "indexmap"
+
+[lints]
+workspace = true

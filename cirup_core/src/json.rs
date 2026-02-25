@@ -6,10 +6,10 @@ use dot_json::value_to_dot;
 use serde::Serialize;
 use serde_json::{Map, Value};
 
-use crate::file::{load_string_from_file, save_string_to_file};
-use crate::file::FileFormat;
-use std::error::Error;
 use crate::Resource;
+use crate::file::FileFormat;
+use crate::file::{load_string_from_file, save_string_to_file};
+use std::error::Error;
 
 pub struct JsonFileFormat {}
 
@@ -23,11 +23,7 @@ fn json_dot_insert(root_map: &mut Map<String, Value>, name: &str, value: &str) {
             root_map.insert(root_path.to_string(), Value::Object(child_map));
         }
 
-        let mut child_map = root_map
-            .get_mut(root_path)
-            .unwrap()
-            .as_object_mut()
-            .unwrap();
+        let mut child_map = root_map.get_mut(root_path).unwrap().as_object_mut().unwrap();
         json_dot_insert(&mut child_map, child_path, value);
     } else {
         root_map.insert(name.to_string(), Value::String(value.to_string()));

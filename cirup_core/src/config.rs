@@ -37,10 +37,7 @@ impl Config {
         let config = Config::new_from_string(&contents)?;
 
         info!("source language: {}", config.sync.source_language);
-        info!(
-            "target language(s): {}",
-            config.sync.target_languages.join(" ")
-        );
+        info!("target language(s): {}", config.sync.target_languages.join(" "));
 
         Ok(config)
     }

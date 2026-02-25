@@ -3,10 +3,10 @@ use std::fmt;
 use std::fs;
 use std::io::prelude::*;
 
-use crate::file::load_string_from_file;
-use crate::file::FileFormat;
-use std::error::Error;
 use crate::Resource;
+use crate::file::FileFormat;
+use crate::file::load_string_from_file;
+use std::error::Error;
 
 /*
  * .restext file format:
@@ -64,11 +64,7 @@ impl FileFormat for RestextFileFormat {
 
         for resource in resources {
             let escaped_value = escape_newlines(resource.value.as_str());
-            fmt::write(
-                &mut output,
-                format_args!("{}={}\r\n", resource.name, escaped_value),
-            )
-            .unwrap();
+            fmt::write(&mut output, format_args!("{}={}\r\n", resource.name, escaped_value)).unwrap();
         }
 
         output

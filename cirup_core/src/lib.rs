@@ -1,7 +1,7 @@
+extern crate chrono;
 extern crate regex;
 extern crate treexml;
 extern crate uuid;
-extern crate chrono;
 
 extern crate dot_json;
 extern crate rusqlite;
@@ -24,7 +24,6 @@ pub use crate::resource::Resource;
 
 mod triple;
 pub use crate::triple::Triple;
-
 
 pub mod config;
 mod shell;

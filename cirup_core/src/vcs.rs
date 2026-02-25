@@ -27,12 +27,7 @@ pub trait Vcs {
         inclusive: bool,
         limit: u32,
     ) -> Result<(), Box<dyn Error>>;
-    fn diff(
-        &self,
-        filespec: &str,
-        old_commit: &str,
-        new_commit: Option<&str>,
-    ) -> Result<(), Box<dyn Error>>;
+    fn diff(&self, filespec: &str, old_commit: &str, new_commit: Option<&str>) -> Result<(), Box<dyn Error>>;
     fn show(&self, filespec: &str, commit: Option<&str>, output: &str) -> Result<(), Box<dyn Error>>;
 }
 
@@ -41,22 +36,12 @@ pub mod vcs_type {
     pub const SVN: &'static str = "svn";
 }
 
+#[derive(Default)]
 struct VcsMetadata {
     name: String,
     executable: String,
     local_path: String,
     remote_path: String,
-}
-
-impl Default for VcsMetadata {
-    fn default() -> VcsMetadata {
-        VcsMetadata {
-            name: String::new(),
-            executable: String::new(),
-            local_path: String::new(),
-            remote_path: String::new(),
-        }
-    }
 }
 
 impl VcsMetadata {
@@ -78,24 +63,24 @@ impl VcsMetadata {
 
 pub fn new(config: &config::Config) -> Result<Box<dyn Vcs>, Box<dyn Error>> {
     let mut meta = VcsMetadata {
-        local_path: config.vcs.local_path.to_string(),
-        remote_path: config.vcs.remote_path.to_string(),
+        local_path: config.vcs.local_path.clone(),
+        remote_path: config.vcs.remote_path.clone(),
         ..Default::default()
     };
 
     match config.vcs.plugin.as_ref() {
         vcs_type::GIT => match find_git::git_path() {
             Some(p) => {
-                meta.name = vcs_type::GIT.to_string();
-                meta.executable = p.to_str().unwrap().to_string();
+                meta.name = vcs_type::GIT.to_owned();
+                meta.executable = p.to_str().ok_or("git path contains invalid UTF-8")?.to_owned();
                 Ok(Box::new(Git { meta: meta }))
             }
             None => Err("cannot find git binary")?,
         },
         vcs_type::SVN => match shell::find_binary("svn") {
             Some(p) => {
-                meta.name = vcs_type::SVN.to_string();
-                meta.executable = p.to_str().unwrap().to_string();
+                meta.name = vcs_type::SVN.to_owned();
+                meta.executable = p.to_str().ok_or("svn path contains invalid UTF-8")?.to_owned();
                 Ok(Box::new(Svn { meta: meta }))
             }
             None => Err("cannot find svn binary")?,
@@ -125,10 +110,7 @@ impl Vcs for Git {
         } else {
             let git_path = Path::new(&self.meta.local_path).join(".git");
             if git_path.join("rebase-merge").exists() || git_path.join("rebase-apply").exists() {
-                Err(format!(
-                    "{} appears to have a pending rebase",
-                    self.meta.local_path
-                ))?;
+                Err(format!("{} appears to have a pending rebase", self.meta.local_path))?;
             }
         }
 
@@ -150,10 +132,7 @@ impl Vcs for Git {
         // Error out if there are conflicts
         match self.meta.run(&["merge", "--ff-only"]) {
             Ok(_) => (),
-            Err(_) => Err(format!(
-                "{} appears to have conflicts",
-                self.meta.local_path
-            ))?,
+            Err(_) => Err(format!("{} appears to have conflicts", self.meta.local_path))?,
         }
 
         debug!("vcs pull end");
@@ -172,25 +151,19 @@ impl Vcs for Git {
         old_commit: Option<&str>,
         new_commit: Option<&str>,
         inclusive: bool,
-        limit: u32
+        limit: u32,
     ) -> Result<(), Box<dyn Error>> {
-        let format = format!("--pretty=format:%h - %aI - %an - %s");
-        let commit: String;
-
-        if old_commit.is_some() {
-            commit = format!(
+        let format = "--pretty=format:%h - %aI - %an - %s".to_string();
+        let commit = if let Some(old_commit) = old_commit {
+            format!(
                 "{}{}..{}",
-                old_commit.unwrap(),
+                old_commit,
                 if inclusive { "^" } else { "" },
-                if new_commit.is_some() {
-                    new_commit.unwrap()
-                } else {
-                    "HEAD"
-                }
-            );
+                new_commit.unwrap_or("HEAD")
+            )
         } else {
-            commit = "HEAD".to_string();
-        }
+            "HEAD".to_owned()
+        };
 
         let limit_arg = limit.to_string();
         let mut args = vec!["log", &format];
@@ -212,35 +185,22 @@ impl Vcs for Git {
         }
     }
 
-    fn diff(
-        &self,
-        filespec: &str,
-        old_commit: &str,
-        new_commit: Option<&str>,
-    ) -> Result<(), Box<dyn Error>> {
+    fn diff(&self, filespec: &str, old_commit: &str, new_commit: Option<&str>) -> Result<(), Box<dyn Error>> {
         let mut args: Vec<&str> = Vec::new();
         args.push("diff");
         args.push(old_commit);
 
-        if new_commit.is_some() {
-            args.push(new_commit.unwrap());
+        if let Some(new_commit) = new_commit {
+            args.push(new_commit);
         }
 
         args.push(filespec);
 
-        return self.meta.run(&args);
+        self.meta.run(&args)
     }
 
     fn show(&self, filespec: &str, commit: Option<&str>, output: &str) -> Result<(), Box<dyn Error>> {
-        let show = format!(
-            "{}:{}",
-            if commit.is_none() {
-                "HEAD"
-            } else {
-                commit.unwrap()
-            },
-            filespec
-        );
+        let show = format!("{}:{}", commit.unwrap_or("HEAD"), filespec);
         shell::output_to_file(
             &self.meta.executable,
             Path::new(&self.meta.local_path),
@@ -273,7 +233,7 @@ struct Log {
 impl LogEntry {
     fn iso_formatted_date(&self) -> Result<String, Box<dyn Error>> {
         let dt = Utc.datetime_from_str(self.date.trim_end_matches("Z"), "%Y-%m-%dT%H:%M:%S%.6f")?;
-        return Ok(dt.to_rfc3339_opts(SecondsFormat::Secs, false))
+        Ok(dt.to_rfc3339_opts(SecondsFormat::Secs, false))
     }
 }
 
@@ -283,9 +243,12 @@ fn iso_formatted_date_test() {
         revision: 0,
         author: "0".to_string(),
         msg: "0".to_string(),
-        date: "2017-12-23T15:51:26.982890Z".to_string()
+        date: "2017-12-23T15:51:26.982890Z".to_string(),
     };
-    assert_eq!(log.iso_formatted_date().unwrap(), "2017-12-23T15:51:26+00:00".to_string());
+    assert_eq!(
+        log.iso_formatted_date().unwrap(),
+        "2017-12-23T15:51:26+00:00".to_string()
+    );
 }
 
 impl Svn {
@@ -325,12 +288,8 @@ impl Vcs for Svn {
                 "{} does not appear to be a svn repository. Checking out...",
                 self.meta.local_path
             );
-            self.meta.run(&[
-                "co",
-                &self.meta.remote_path,
-                &self.meta.local_path,
-                "--non-interactive",
-            ])?;
+            self.meta
+                .run(&["co", &self.meta.remote_path, &self.meta.local_path, "--non-interactive"])?;
         }
 
         Ok(())
@@ -378,21 +337,9 @@ impl Vcs for Svn {
         old_commit: Option<&str>,
         new_commit: Option<&str>,
         _inclusive: bool,
-        limit: u32
+        limit: u32,
     ) -> Result<(), Box<dyn Error>> {
-        let commit = format!(
-            "{}:{}",
-            if new_commit.is_some() {
-                new_commit.unwrap()
-            } else {
-                "HEAD"
-            },
-            if old_commit.is_some() {
-                old_commit.unwrap()
-            } else {
-                "1"
-            },
-        );
+        let commit = format!("{}:{}", new_commit.unwrap_or("HEAD"), old_commit.unwrap_or("1"),);
 
         let limit_arg = limit.to_string();
         let mut args = vec!["log", "--revision", &commit, "--xml", filespec];
@@ -402,9 +349,7 @@ impl Vcs for Svn {
             args.push(&limit_arg);
         };
 
-        let xml = self
-            .meta
-            .output(&args)?;
+        let xml = self.meta.output(&args)?;
         let log: Log = serde_xml_rs::de::from_str(&xml)?;
 
         for entry in &log.entries {
@@ -413,30 +358,17 @@ impl Vcs for Svn {
                 entry.revision,
                 entry.iso_formatted_date()?,
                 entry.author,
-                entry.msg.lines().nth(0).unwrap()
+                entry.msg.lines().next().unwrap_or("")
             );
         }
 
         Ok(())
     }
 
-    fn diff(
-        &self,
-        filespec: &str,
-        old_commit: &str,
-        new_commit: Option<&str>,
-    ) -> Result<(), Box<dyn Error>> {
-        let commit = format!(
-            "{}:{}",
-            old_commit,
-            if new_commit.is_some() {
-                new_commit.unwrap()
-            } else {
-                "HEAD"
-            }
-        );
+    fn diff(&self, filespec: &str, old_commit: &str, new_commit: Option<&str>) -> Result<(), Box<dyn Error>> {
+        let commit = format!("{}:{}", old_commit, new_commit.unwrap_or("HEAD"));
 
-        return self.meta.run(&["diff", "--revision", &commit, filespec]);
+        self.meta.run(&["diff", "--revision", &commit, filespec])
     }
 
     fn show(&self, filespec: &str, commit: Option<&str>, output: &str) -> Result<(), Box<dyn Error>> {
@@ -444,9 +376,9 @@ impl Vcs for Svn {
         args.push("cat");
         args.push(filespec);
 
-        if commit.is_some() {
+        if let Some(commit) = commit {
             args.push("--revision");
-            args.push(commit.unwrap());
+            args.push(commit);
         }
 
         shell::output_to_file(

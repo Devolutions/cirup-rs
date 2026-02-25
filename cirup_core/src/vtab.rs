@@ -1,6 +1,6 @@
 use rusqlite::vtab::{
-    dequote, read_only_module, sqlite3_vtab, sqlite3_vtab_cursor, Context, CreateVTab, IndexInfo,
-    Module, VTab, VTabConnection, VTabCursor, Values,
+    Context, CreateVTab, IndexInfo, Module, VTab, VTabConnection, VTabCursor, Values, dequote, read_only_module,
+    sqlite3_vtab, sqlite3_vtab_cursor,
 };
 
 use rusqlite::types::*;
@@ -28,10 +28,7 @@ fn query_table(filename: &str) -> Vec<Vec<Value>> {
     rows
 }
 
-fn create_schema(
-    column_name: &Vec<&'static str>,
-    column_types: &Vec<&'static str>,
-) -> Option<String> {
+fn create_schema(column_name: &Vec<&'static str>, column_types: &Vec<&'static str>) -> Option<String> {
     let mut schema = None;
     if schema.is_none() {
         let mut sql = String::from("CREATE TABLE x(");
@@ -113,11 +110,7 @@ impl VTab for CirupTab {
     type Aux = ();
     type Cursor = CirupTabCursor;
 
-    fn connect(
-        _: &mut VTabConnection,
-        _aux: Option<&()>,
-        _args: &[&[u8]],
-    ) -> Result<(String, CirupTab)> {
+    fn connect(_: &mut VTabConnection, _aux: Option<&()>, _args: &[&[u8]]) -> Result<(String, CirupTab)> {
         if _args.len() < 4 {
             return Err(Error::ModuleError("no table name specified".to_owned()));
         }
@@ -136,10 +129,7 @@ impl VTab for CirupTab {
                     vtab.filename = value.to_string();
                 }
                 _ => {
-                    return Err(Error::ModuleError(format!(
-                        "unrecognized parameter '{}'",
-                        param
-                    )));
+                    return Err(Error::ModuleError(format!("unrecognized parameter '{}'", param)));
                 }
             }
         }
@@ -178,7 +168,7 @@ struct CirupTabCursor {
 }
 
 impl VTabCursor for CirupTabCursor {
-    fn filter(&mut self, _idx_num: c_int, _idx_str: Option<&str>, _args: &Values) -> Result<()> {
+    fn filter(&mut self, _idx_num: c_int, _idx_str: Option<&str>, _args: &Values<'_>) -> Result<()> {
         let cirup_table = unsafe { &*(self.base.pVtab as *const CirupTab) };
         // register table in memory
         if !self.table_in_memory {
@@ -207,10 +197,7 @@ impl VTabCursor for CirupTabCursor {
 
     fn column(&self, ctx: &mut Context, col: c_int) -> Result<()> {
         if col < 0 || col as usize >= self.cols.len() {
-            return Err(Error::ModuleError(format!(
-                "column index out of bounds: {}",
-                col
-            )));
+            return Err(Error::ModuleError(format!("column index out of bounds: {}", col)));
         }
         if self.cols.is_empty() {
             return ctx.set_result(&Null);
