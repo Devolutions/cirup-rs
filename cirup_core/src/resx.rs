@@ -17,16 +17,11 @@ fn without_bom(text: &str) -> &[u8] {
 }
 
 fn escape_xml_text(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
+    value.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
 fn escape_xml_attr(value: &str) -> String {
-    escape_xml_text(value)
-        .replace('"', "&quot;")
-        .replace('\'', "&apos;")
+    escape_xml_text(value).replace('"', "&quot;").replace('\'', "&apos;")
 }
 
 impl FileFormat for ResxFileFormat {

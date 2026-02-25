@@ -64,8 +64,7 @@ const QUERY_SORT_A: &str = "select * from a order by a.key";
 #[cfg(feature = "turso-rust")]
 const QUERY_DIFF: &str = "select a.key, a.val, b.val from a left outer join b on a.key = b.key where (b.val is null)";
 #[cfg(feature = "turso-rust")]
-const QUERY_DIFF_WITH_BASE: &str =
-    "select b.key, b.val, c.val from b left outer join a on b.key = a.key inner join c on b.key = c.key where (a.val is null)";
+const QUERY_DIFF_WITH_BASE: &str = "select b.key, b.val, c.val from b left outer join a on b.key = a.key inner join c on b.key = c.key where (a.val is null)";
 #[cfg(feature = "turso-rust")]
 const QUERY_CHANGE: &str =
     "select a.key, a.val, b.val from a left outer join b on a.key = b.key where (b.val is null) or (a.val <> b.val)";
@@ -505,9 +504,7 @@ impl TursoLocalBackend {
 
             for resource in a {
                 let pair = (resource.name.as_str(), resource.value.as_str());
-                if b_pairs.contains(&pair)
-                    && dedupe.insert((resource.name.clone(), resource.value.clone()))
-                {
+                if b_pairs.contains(&pair) && dedupe.insert((resource.name.clone(), resource.value.clone())) {
                     resources.push(resource.clone());
                 }
             }
@@ -540,10 +537,7 @@ impl TursoLocalBackend {
 
             let mut resources = Vec::new();
             for resource in a {
-                let repeat = b_match_count
-                    .get(resource.name.as_str())
-                    .copied()
-                    .unwrap_or(1);
+                let repeat = b_match_count.get(resource.name.as_str()).copied().unwrap_or(1);
                 for _ in 0..repeat {
                     resources.push(resource.clone());
                 }
@@ -856,7 +850,9 @@ pub(crate) fn build_backend(query_config: &QueryConfig) -> Box<dyn QueryBackend>
 
             #[cfg(not(feature = "rusqlite-c"))]
             {
-                warn!("rusqlite backend requested but 'rusqlite-c' feature is disabled, falling back to available backend");
+                warn!(
+                    "rusqlite backend requested but 'rusqlite-c' feature is disabled, falling back to available backend"
+                );
                 return fallback_backend();
             }
         }
@@ -874,7 +870,9 @@ pub(crate) fn build_backend(query_config: &QueryConfig) -> Box<dyn QueryBackend>
 
             #[cfg(not(feature = "turso-rust"))]
             {
-                warn!("turso-remote backend requested but 'turso-rust' feature is disabled, falling back to available backend");
+                warn!(
+                    "turso-remote backend requested but 'turso-rust' feature is disabled, falling back to available backend"
+                );
             }
 
             fallback_backend()
@@ -887,7 +885,9 @@ pub(crate) fn build_backend(query_config: &QueryConfig) -> Box<dyn QueryBackend>
 
             #[cfg(not(feature = "turso-rust"))]
             {
-                warn!("turso-local backend requested but 'turso-rust' feature is disabled, falling back to available backend");
+                warn!(
+                    "turso-local backend requested but 'turso-rust' feature is disabled, falling back to available backend"
+                );
                 fallback_backend()
             }
         }
