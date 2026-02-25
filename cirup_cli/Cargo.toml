@@ -16,7 +16,12 @@ env_logger = "0.11"
 [build-dependencies]
 embed-resource = "3.0.6"
 
-[dependencies.cirup_core]
+[target.'cfg(all(target_os = "windows", target_arch = "aarch64"))'.dependencies.cirup_core]
+path = "../cirup_core"
+default-features = false
+features = ["rusqlite-c"]
+
+[target.'cfg(not(all(target_os = "windows", target_arch = "aarch64")))'.dependencies.cirup_core]
 path = "../cirup_core"
 
 [lints]
