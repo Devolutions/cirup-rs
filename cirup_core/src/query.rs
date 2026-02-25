@@ -1,3 +1,5 @@
+#![allow(clippy::self_named_module_files)]
+
 use prettytable::{Cell, Row, Table};
 
 use rusqlite::Rows;
