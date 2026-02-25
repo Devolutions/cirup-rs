@@ -78,6 +78,30 @@ set CIRUP_TURSO_AUTH_TOKEN=your-token
 cirup file-diff a.json b.json
 ```
 
+## Large RESX benchmark fixtures
+
+Benchmark fixtures are stored in:
+
+- `cirup_core/test/benchmark/rdm_resx`
+
+Quick fixture sanity check:
+
+```bash
+cargo test -p cirup_core benchmark_fixture_set_is_present
+```
+
+Run large-file performance benchmark (rusqlite):
+
+```bash
+cargo test -p cirup_core benchmark_performance_rusqlite_large_resx -- --ignored --nocapture
+```
+
+Run large-file correctness benchmark (rusqlite vs turso-local):
+
+```bash
+cargo test -p cirup_core --features turso-rust benchmark_correctness_rusqlite_vs_turso_local -- --ignored --nocapture
+```
+
 ## Main commands
 
 ### `vcs-log`
