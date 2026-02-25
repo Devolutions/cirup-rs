@@ -1,6 +1,6 @@
 [package]
 name = "cirup_core"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Marc-André Moreau <marcandre.moreau@gmail.com>"]
 edition = "2024"
 
@@ -52,8 +52,7 @@ features = ["remote", "tls"]
 optional = true
 
 [dependencies.treexml]
-git = "https://github.com/awakecoding/treexml-rs.git"
-branch = "indexmap"
+version = "0.7"
 
 [lints]
 workspace = true

@@ -16,6 +16,19 @@ fn without_bom(text: &str) -> &[u8] {
     text.as_bytes()
 }
 
+fn escape_xml_text(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+fn escape_xml_attr(value: &str) -> String {
+    escape_xml_text(value)
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
+}
+
 impl FileFormat for ResxFileFormat {
     const EXTENSION: &'static str = "resx";
 
@@ -49,25 +62,18 @@ impl FileFormat for ResxFileFormat {
     }
 
     fn write_to_str(&self, resources: &[Resource]) -> String {
-        let mut root = Element::new("root");
+        let mut output = String::from("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<root>");
 
         for resource in resources {
-            let mut data = Element::new("data");
-            data.attributes.insert("name".to_owned(), resource.name.clone());
-            data.attributes.insert("xml:space".to_owned(), "preserve".to_owned());
-            let mut value = Element::new("value");
-            value.text = Some(resource.value.clone());
-            data.children.push(value);
-            root.children.push(data);
+            output.push_str("\n  <data name=\"");
+            output.push_str(&escape_xml_attr(resource.name.as_str()));
+            output.push_str("\" xml:space=\"preserve\">\n    <value>");
+            output.push_str(&escape_xml_text(resource.value.as_str()));
+            output.push_str("</value>\n  </data>");
         }
 
-        let doc = Document {
-            root: Some(root),
-            encoding: "utf-8".to_owned(),
-            ..Document::default()
-        };
-
-        doc.to_string()
+        output.push_str("\n</root>");
+        output
     }
 
     fn write_to_file(&self, filename: &str, resources: &[Resource]) {

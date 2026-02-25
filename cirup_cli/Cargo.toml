@@ -1,6 +1,6 @@
 [package]
 name = "cirup_cli"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Marc-André Moreau <marcandre.moreau@gmail.com>"]
 edition = "2024"
 
@@ -13,7 +13,15 @@ clap = { version = "4.5", features = ["derive"] }
 log = "0.4"
 env_logger = "0.11"
 
-[dependencies.cirup_core]
+[build-dependencies]
+embed-resource = "3.0.6"
+
+[target.'cfg(all(target_os = "windows", target_arch = "aarch64"))'.dependencies.cirup_core]
+path = "../cirup_core"
+default-features = false
+features = ["rusqlite-c"]
+
+[target.'cfg(not(all(target_os = "windows", target_arch = "aarch64")))'.dependencies.cirup_core]
 path = "../cirup_core"
 
 [lints]

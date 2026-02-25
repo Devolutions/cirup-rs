@@ -233,7 +233,8 @@ struct Log {
 
 impl LogEntry {
     fn iso_formatted_date(&self) -> Result<String, Box<dyn Error>> {
-        let dt = Utc.datetime_from_str(self.date.trim_end_matches("Z"), "%Y-%m-%dT%H:%M:%S%.6f")?;
+        let dt = NaiveDateTime::parse_from_str(self.date.trim_end_matches("Z"), "%Y-%m-%dT%H:%M:%S%.6f")?
+            .and_utc();
         Ok(dt.to_rfc3339_opts(SecondsFormat::Secs, false))
     }
 }
