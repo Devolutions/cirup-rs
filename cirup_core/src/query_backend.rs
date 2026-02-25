@@ -6,6 +6,7 @@ use crate::file::load_resource_file;
 use crate::file::vfile_set;
 use crate::{Resource, Triple};
 
+#[cfg(feature = "rusqlite-c")]
 use rusqlite::{Connection, Error as SqlError, Statement};
 
 #[cfg(feature = "turso-rust")]
@@ -151,6 +152,7 @@ fn remote_auth_token_from_config(turso_config: &TursoConfig) -> String {
     })
 }
 
+#[cfg(feature = "rusqlite-c")]
 fn query_resource_from_statement(statement: &mut Statement<'_>) -> Vec<Resource> {
     let mut resources: Vec<Resource> = Vec::new();
     let mut response = match statement.query(&[]) {
@@ -173,6 +175,7 @@ fn query_resource_from_statement(statement: &mut Statement<'_>) -> Vec<Resource>
     resources
 }
 
+#[cfg(feature = "rusqlite-c")]
 fn query_triple_from_statement(statement: &mut Statement<'_>) -> Vec<Triple> {
     let mut resources: Vec<Triple> = Vec::new();
     let mut response = match statement.query(&[]) {
@@ -196,10 +199,12 @@ fn query_triple_from_statement(statement: &mut Statement<'_>) -> Vec<Triple> {
     resources
 }
 
+#[cfg(feature = "rusqlite-c")]
 pub(crate) struct RusqliteBackend {
     db: Connection,
 }
 
+#[cfg(feature = "rusqlite-c")]
 impl RusqliteBackend {
     pub(crate) fn new() -> Self {
         let db = Connection::open_in_memory().expect("failed to open in-memory database");
@@ -256,6 +261,7 @@ impl RusqliteBackend {
     }
 }
 
+#[cfg(feature = "rusqlite-c")]
 impl QueryBackend for RusqliteBackend {
     #[cfg(test)]
     fn register_table_from_str(&mut self, table: &str, filename: &str, data: &str) {
@@ -823,9 +829,37 @@ impl QueryBackend for TursoRemoteBackend {
     }
 }
 
+fn fallback_backend() -> Box<dyn QueryBackend> {
+    #[cfg(feature = "turso-rust")]
+    {
+        return Box::new(TursoLocalBackend::new());
+    }
+
+    #[cfg(all(not(feature = "turso-rust"), feature = "rusqlite-c"))]
+    {
+        return Box::new(RusqliteBackend::new());
+    }
+
+    #[cfg(all(not(feature = "turso-rust"), not(feature = "rusqlite-c")))]
+    {
+        panic!("no query backend feature enabled: enable 'turso-rust' or 'rusqlite-c'");
+    }
+}
+
 pub(crate) fn build_backend(query_config: &QueryConfig) -> Box<dyn QueryBackend> {
     match query_config.backend {
-        QueryBackendKind::Rusqlite => Box::new(RusqliteBackend::new()),
+        QueryBackendKind::Rusqlite => {
+            #[cfg(feature = "rusqlite-c")]
+            {
+                return Box::new(RusqliteBackend::new());
+            }
+
+            #[cfg(not(feature = "rusqlite-c"))]
+            {
+                warn!("rusqlite backend requested but 'rusqlite-c' feature is disabled, falling back to available backend");
+                return fallback_backend();
+            }
+        }
         QueryBackendKind::TursoRemote => {
             #[cfg(feature = "turso-rust")]
             {
@@ -833,17 +867,17 @@ pub(crate) fn build_backend(query_config: &QueryConfig) -> Box<dyn QueryBackend>
                     Ok(backend) => return Box::new(backend),
                     Err(e) => {
                         warn!("{}", e);
-                        warn!("falling back to rusqlite backend");
+                        warn!("falling back to available backend");
                     }
                 }
             }
 
             #[cfg(not(feature = "turso-rust"))]
             {
-                warn!("turso-remote backend requested but 'turso-rust' feature is disabled, falling back to rusqlite");
+                warn!("turso-remote backend requested but 'turso-rust' feature is disabled, falling back to available backend");
             }
 
-            Box::new(RusqliteBackend::new())
+            fallback_backend()
         }
         QueryBackendKind::TursoLocal => {
             #[cfg(feature = "turso-rust")]
@@ -853,8 +887,8 @@ pub(crate) fn build_backend(query_config: &QueryConfig) -> Box<dyn QueryBackend>
 
             #[cfg(not(feature = "turso-rust"))]
             {
-                warn!("turso-local backend requested but 'turso-rust' feature is disabled, falling back to rusqlite");
-                Box::new(RusqliteBackend::new())
+                warn!("turso-local backend requested but 'turso-rust' feature is disabled, falling back to available backend");
+                fallback_backend()
             }
         }
     }

@@ -1,19 +1,23 @@
 use std::path::{Path, PathBuf};
+#[cfg(feature = "rusqlite-c")]
 use std::time::Instant;
 
-#[cfg(feature = "turso-rust")]
+#[cfg(all(feature = "turso-rust", feature = "rusqlite-c"))]
 use std::collections::HashSet;
-#[cfg(feature = "turso-rust")]
+#[cfg(all(feature = "turso-rust", feature = "rusqlite-c"))]
 use std::time::Duration;
 
-#[cfg(feature = "turso-rust")]
+#[cfg(all(feature = "turso-rust", feature = "rusqlite-c"))]
 use cirup_core::Resource;
-#[cfg(feature = "turso-rust")]
+#[cfg(all(feature = "turso-rust", feature = "rusqlite-c"))]
 use cirup_core::Triple;
+#[cfg(feature = "rusqlite-c")]
 use cirup_core::config::QueryBackendKind;
+#[cfg(feature = "rusqlite-c")]
 use cirup_core::query;
 
 struct FixtureTriplet {
+    #[cfg(feature = "rusqlite-c")]
     name: &'static str,
     en: &'static str,
     fr: &'static str,
@@ -27,18 +31,21 @@ fn fixtures_root() -> PathBuf {
 fn fixture_triplets() -> Vec<FixtureTriplet> {
     vec![
         FixtureTriplet {
+            #[cfg(feature = "rusqlite-c")]
             name: "UIResources",
             en: "UIResources.resx",
             fr: "UIResources.fr.resx",
             de: "UIResources.de.resx",
         },
         FixtureTriplet {
+            #[cfg(feature = "rusqlite-c")]
             name: "MsgResources",
             en: "MsgResources.resx",
             fr: "MsgResources.fr.resx",
             de: "MsgResources.de.resx",
         },
         FixtureTriplet {
+            #[cfg(feature = "rusqlite-c")]
             name: "BusinessResources",
             en: "BusinessResources.resx",
             fr: "BusinessResources.fr.resx",
@@ -47,16 +54,17 @@ fn fixture_triplets() -> Vec<FixtureTriplet> {
     ]
 }
 
+#[cfg(feature = "rusqlite-c")]
 fn fixture_path(file_name: &str) -> String {
     fixtures_root().join(file_name).to_string_lossy().to_string()
 }
 
-#[cfg(feature = "turso-rust")]
+#[cfg(all(feature = "turso-rust", feature = "rusqlite-c"))]
 fn normalize(resources: &mut [Resource]) {
     resources.sort_by(|a, b| a.name.cmp(&b.name).then(a.value.cmp(&b.value)));
 }
 
-#[cfg(feature = "turso-rust")]
+#[cfg(all(feature = "turso-rust", feature = "rusqlite-c"))]
 fn normalize_triples(triples: &mut [Triple]) {
     triples.sort_by(|a, b| {
         a.name
@@ -66,7 +74,7 @@ fn normalize_triples(triples: &mut [Triple]) {
     });
 }
 
-#[cfg(feature = "turso-rust")]
+#[cfg(all(feature = "turso-rust", feature = "rusqlite-c"))]
 fn triples_to_tuples(triples: &[Triple]) -> Vec<(String, String, String)> {
     triples
         .iter()
@@ -80,7 +88,7 @@ fn triples_to_tuples(triples: &[Triple]) -> Vec<(String, String, String)> {
         .collect()
 }
 
-#[cfg(feature = "turso-rust")]
+#[cfg(all(feature = "turso-rust", feature = "rusqlite-c"))]
 fn benchmark_resource_operation<F>(
     label: &str,
     ordered: bool,
@@ -116,7 +124,7 @@ where
     (rusqlite_elapsed, turso_elapsed, rows)
 }
 
-#[cfg(feature = "turso-rust")]
+#[cfg(all(feature = "turso-rust", feature = "rusqlite-c"))]
 fn benchmark_triple_operation<F>(label: &str, mut operation: F) -> (Duration, Duration, usize)
 where
     F: FnMut(QueryBackendKind) -> Vec<Triple>,
@@ -163,6 +171,7 @@ fn benchmark_fixture_set_is_present() {
 }
 
 #[test]
+#[cfg(feature = "rusqlite-c")]
 #[ignore = "benchmark: run manually with --ignored --nocapture"]
 #[allow(clippy::print_stdout)]
 fn benchmark_performance_rusqlite_large_resx() {
@@ -197,7 +206,7 @@ fn benchmark_performance_rusqlite_large_resx() {
 }
 
 #[test]
-#[cfg(feature = "turso-rust")]
+#[cfg(all(feature = "turso-rust", feature = "rusqlite-c"))]
 #[ignore = "comparative benchmark: run manually with --ignored --nocapture"]
 #[allow(clippy::print_stdout)]
 fn benchmark_correctness_rusqlite_vs_turso_local() {

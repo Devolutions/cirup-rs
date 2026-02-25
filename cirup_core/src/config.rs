@@ -9,8 +9,8 @@ use toml;
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum QueryBackendKind {
-    #[default]
     Rusqlite,
+    #[default]
     TursoLocal,
     TursoRemote,
 }

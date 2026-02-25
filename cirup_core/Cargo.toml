@@ -5,8 +5,9 @@ authors = ["Marc-André Moreau <marcandre.moreau@gmail.com>"]
 edition = "2024"
 
 [features]
-default = []
+default = ["turso-rust"]
 turso-rust = ["dep:tokio", "dep:turso", "dep:libsql"]
+rusqlite-c = ["dep:rusqlite"]
 
 [dependencies]
 chrono = "0.4"
@@ -33,6 +34,7 @@ features = ["preserve_order"]
 [dependencies.rusqlite]
 version = "0.14.0"
 features = ["bundled"]
+optional = true
 
 [dependencies.tokio]
 version = "1"

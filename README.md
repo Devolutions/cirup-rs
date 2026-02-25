@@ -45,7 +45,7 @@ working_dir = "/opt/wayk/i18n/WaykNow-Translations"
 
 [query]
 # Query backend: rusqlite | turso-local | turso-remote
-backend = "rusqlite"
+backend = "turso-local"
 
 [query.turso]
 # Required when using turso-remote
@@ -55,11 +55,18 @@ auth_token = ""
 
 ### Query backend notes
 
-- Default backend is `rusqlite`.
-- Enable Turso backends (`turso-local` and `turso-remote`) with the `turso-rust` feature:
+- Default backend is `turso-local`.
+- Default build enables `turso-rust`, so no C-backed SQLite dependency is built by default.
+- Enable `rusqlite` (C-backed SQLite) explicitly with the `rusqlite-c` feature:
 
 ```bash
-cargo run -p cirup_cli --features turso-rust -- --config ./config.cirup pull
+cargo run -p cirup_cli --features rusqlite-c -- --config ./config.cirup pull
+```
+
+- Turso backends (`turso-local` and `turso-remote`) are available with default features:
+
+```bash
+cargo run -p cirup_cli -- --config ./config.cirup pull
 ```
 
 - For file commands without a config, you can override the default at runtime:
@@ -93,13 +100,13 @@ cargo test -p cirup_core benchmark_fixture_set_is_present
 Run large-file performance benchmark (rusqlite):
 
 ```bash
-cargo test -p cirup_core benchmark_performance_rusqlite_large_resx -- --ignored --nocapture
+cargo test -p cirup_core --features rusqlite-c benchmark_performance_rusqlite_large_resx -- --ignored --nocapture
 ```
 
 Run large-file correctness benchmark (rusqlite vs turso-local):
 
 ```bash
-cargo test -p cirup_core --features turso-rust benchmark_correctness_rusqlite_vs_turso_local -- --ignored --nocapture
+cargo test -p cirup_core --features rusqlite-c benchmark_correctness_rusqlite_vs_turso_local -- --ignored --nocapture
 ```
 
 ## Main commands
