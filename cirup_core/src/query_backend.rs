@@ -481,10 +481,8 @@ impl TursoLocalBackend {
 
             for resource in b {
                 let key = resource.name.as_str();
-                if !a_values.contains_key(key) {
-                    if dedupe.insert((resource.name.clone(), resource.value.clone())) {
-                        resources.push(resource.clone());
-                    }
+                if !a_values.contains_key(key) && dedupe.insert((resource.name.clone(), resource.value.clone())) {
+                    resources.push(resource.clone());
                 }
             }
 
@@ -597,10 +595,10 @@ impl TursoLocalBackend {
         let mut triples = Vec::new();
         for resource in b {
             let key = resource.name.as_str();
-            if !a_keys.contains(key) {
-                if let Some(base) = c_values.get(key) {
-                    triples.push(Triple::new(key, resource.value.as_str(), base));
-                }
+            if !a_keys.contains(key)
+                && let Some(base) = c_values.get(key)
+            {
+                triples.push(Triple::new(key, resource.value.as_str(), base));
             }
         }
 
@@ -706,7 +704,7 @@ impl TursoRemoteBackend {
             .map_err(|e| format!("failed to build tokio runtime: {}", e))?;
 
         let url = remote_url_from_config(turso_config)
-            .ok_or_else(|| "missing Turso remote URL: set [query.turso].url or CIRUP_TURSO_URL".to_string())?;
+            .ok_or_else(|| "missing Turso remote URL: set [query.turso].url or CIRUP_TURSO_URL".to_owned())?;
         let auth_token = remote_auth_token_from_config(turso_config);
 
         let db = runtime
@@ -826,7 +824,7 @@ impl QueryBackend for TursoRemoteBackend {
 fn fallback_backend() -> Box<dyn QueryBackend> {
     #[cfg(feature = "turso-rust")]
     {
-        return Box::new(TursoLocalBackend::new());
+        Box::new(TursoLocalBackend::new())
     }
 
     #[cfg(all(not(feature = "turso-rust"), feature = "rusqlite-c"))]
@@ -853,7 +851,7 @@ pub(crate) fn build_backend(query_config: &QueryConfig) -> Box<dyn QueryBackend>
                 warn!(
                     "rusqlite backend requested but 'rusqlite-c' feature is disabled, falling back to available backend"
                 );
-                return fallback_backend();
+                fallback_backend()
             }
         }
         QueryBackendKind::TursoRemote => {
@@ -880,7 +878,7 @@ pub(crate) fn build_backend(query_config: &QueryConfig) -> Box<dyn QueryBackend>
         QueryBackendKind::TursoLocal => {
             #[cfg(feature = "turso-rust")]
             {
-                return Box::new(TursoLocalBackend::new());
+                Box::new(TursoLocalBackend::new())
             }
 
             #[cfg(not(feature = "turso-rust"))]

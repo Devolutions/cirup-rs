@@ -42,8 +42,10 @@ fn default_query_backend() -> QueryBackendKind {
 }
 
 fn default_query_config() -> QueryConfig {
-    let mut query_config = QueryConfig::default();
-    query_config.backend = default_query_backend();
+    let mut query_config = QueryConfig {
+        backend: default_query_backend(),
+        ..QueryConfig::default()
+    };
 
     query_config.turso.url = std::env::var("CIRUP_TURSO_URL")
         .ok()
@@ -372,8 +374,10 @@ fn test_query_turso_remote_env_gated() {
         .or_else(|| std::env::var("TURSO_AUTH_TOKEN").ok())
         .unwrap_or_default();
 
-    let mut query_config = QueryConfig::default();
-    query_config.backend = QueryBackendKind::TursoRemote;
+    let mut query_config = QueryConfig {
+        backend: QueryBackendKind::TursoRemote,
+        ..QueryConfig::default()
+    };
     query_config.turso.url = Some(remote_url);
     if !remote_auth_token.is_empty() {
         query_config.turso.auth_token = Some(remote_auth_token);
