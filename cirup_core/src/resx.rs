@@ -1,10 +1,10 @@
 extern crate treexml;
 use treexml::{Document, Element};
 
-use file::{load_string_from_file, save_string_to_file};
-use file::{FileFormat, FormatType};
+use crate::file::{load_string_from_file, save_string_to_file};
+use crate::file::FileFormat;
 use std::error::Error;
-use Resource;
+use crate::Resource;
 
 pub struct ResxFileFormat {}
 
@@ -18,7 +18,6 @@ fn without_bom(text: &str) -> &[u8] {
 
 impl FileFormat for ResxFileFormat {
     const EXTENSION: &'static str = "resx";
-    const TYPE: FormatType = FormatType::Resx;
 
     fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<dyn Error>> {
         let mut resources: Vec<Resource> = Vec::new();

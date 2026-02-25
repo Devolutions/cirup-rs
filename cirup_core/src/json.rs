@@ -6,10 +6,10 @@ use dot_json::value_to_dot;
 use serde::Serialize;
 use serde_json::{Map, Value};
 
-use file::{load_string_from_file, save_string_to_file};
-use file::{FileFormat, FormatType};
+use crate::file::{load_string_from_file, save_string_to_file};
+use crate::file::FileFormat;
 use std::error::Error;
-use Resource;
+use crate::Resource;
 
 pub struct JsonFileFormat {}
 
@@ -44,7 +44,6 @@ fn json_to_string_pretty(value: &Map<String, Value>) -> String {
 
 impl FileFormat for JsonFileFormat {
     const EXTENSION: &'static str = "json";
-    const TYPE: FormatType = FormatType::Json;
 
     fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<dyn Error>> {
         let mut resources: Vec<Resource> = Vec::new();

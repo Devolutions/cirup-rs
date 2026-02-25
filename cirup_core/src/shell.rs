@@ -46,23 +46,14 @@ pub fn output_to_file(exe: &str, dir: &Path, args: &[&str], out: &Path) -> Resul
 }
 
 pub fn find_binary(binary: &str) -> Option<::std::path::PathBuf> {
-    if let Ok(output) = Command::new(LOCATE_COMMAND).arg(binary).output() {
-        let bin = str::from_utf8(&output.stdout)
-            .expect(&format!(
-                "non-UTF8 output when running `{} {}`",
-                LOCATE_COMMAND, binary
-            ))
-            .trim()
-            .lines()
-            .next()
-            .expect(&format!(
-                "should have had at least one line of text when running `{} {}`",
-                LOCATE_COMMAND, binary
-            ));
-        if binary_ran_ok(&bin) {
-            return Some(PathBuf::from(bin));
-        }
+    let output = Command::new(LOCATE_COMMAND).arg(binary).output().ok()?;
+    let output_text = str::from_utf8(&output.stdout).ok()?;
+    let bin = output_text.trim().lines().next()?;
+
+    if binary_ran_ok(bin) {
+        return Some(PathBuf::from(bin));
     }
+
     None
 }
 
@@ -76,16 +67,35 @@ fn binary_ran_ok<S: AsRef<OsStr>>(path: S) -> bool {
 }
 
 #[test]
-fn shell_status() {
-    // TODO This test is not cross-platform
+fn shell_status_success() {
     let dir = Path::new(".");
-    let status = status("ls", &dir, &["-l"]);
-    assert!(status.is_ok())
+    #[cfg(windows)]
+    let status = status("cmd", dir, &["/C", "exit", "0"]);
+    #[cfg(not(windows))]
+    let status = status("sh", dir, &["-c", "exit 0"]);
+
+    assert_eq!(status.unwrap(), 0);
 }
 
 #[test]
-fn find_svn() {
-    // TODO This test is not cross-platform
-    let bin = find_binary("svn");
+fn shell_status_nonzero_exit() {
+    let dir = Path::new(".");
+    #[cfg(windows)]
+    let status = status("cmd", dir, &["/C", "exit", "7"]);
+    #[cfg(not(windows))]
+    let status = status("sh", dir, &["-c", "exit 7"]);
+
+    assert_eq!(status.unwrap(), 7);
+}
+
+#[test]
+fn find_existing_binary() {
+    let bin = find_binary("cargo");
     assert!(bin.is_some())
+}
+
+#[test]
+fn find_missing_binary() {
+    let bin = find_binary("cirup_binary_that_should_not_exist_49a85f");
+    assert!(bin.is_none())
 }

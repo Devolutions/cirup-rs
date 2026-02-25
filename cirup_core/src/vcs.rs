@@ -6,9 +6,10 @@ use std::path::Path;
 
 use chrono::*;
 use regex::Regex;
+use serde::Deserialize;
 
-use config;
-use shell;
+use crate::config;
+use crate::shell;
 
 const DEFAULT_BRANCH: &str = "master";
 

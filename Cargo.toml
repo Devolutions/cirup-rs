@@ -3,4 +3,5 @@ members = [
     "cirup_cli",
     "cirup_core"
 ]
+resolver = "2"
 

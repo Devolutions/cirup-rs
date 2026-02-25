@@ -8,12 +8,12 @@ use std::path::PathBuf;
 use regex::Regex;
 use tempfile;
 
-use config::Config;
-use query;
-use revision::RevisionRange;
-use utils::*;
-use vcs;
-use vcs::Vcs;
+use crate::config::Config;
+use crate::query;
+use crate::revision::RevisionRange;
+use crate::utils::*;
+use crate::vcs;
+use crate::vcs::Vcs;
 
 pub struct Sync {
     pub vcs: Box<dyn Vcs>,

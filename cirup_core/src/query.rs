@@ -4,10 +4,10 @@ use rusqlite::types::*;
 use rusqlite::Rows;
 use rusqlite::{Connection, Error, Statement};
 
-use file::{save_resource_file, vfile_set};
-use vtab::{create_db, init_db, register_table};
+use crate::file::{save_resource_file, vfile_set};
+use crate::vtab::{create_db, init_db, register_table};
 
-use {Resource, Triple};
+use crate::{Resource, Triple};
 
 pub fn print_pretty(columns: Vec<String>, values: &mut Rows) {
     let mut row = Row::empty();
@@ -79,7 +79,7 @@ pub fn execute_query(db: &Connection, query: &str) {
 
     match stmt {
         Ok(mut statement) => {
-            let mut column_names = get_statement_column_names(&statement);
+            let column_names = get_statement_column_names(&statement);
 
             for column_name in statement.column_names().iter() {
                 let v: Value = Value::Text(column_name.to_string());
@@ -267,7 +267,7 @@ impl CirupQuery {
             engine.register_table_from_file("B", file_two.unwrap());
         }
 
-        if file_two.is_some() {
+        if file_three.is_some() {
             engine.register_table_from_file("C", file_three.unwrap());
         }
 
@@ -302,7 +302,7 @@ impl CirupQuery {
 }
 
 #[cfg(test)]
-use file::load_resource_str;
+use crate::file::load_resource_str;
 
 #[test]
 fn test_query() {

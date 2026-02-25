@@ -9,7 +9,7 @@ use rusqlite::{Connection, Error, Result};
 use std::os::raw::c_int;
 use std::str;
 
-use file::load_resource_file;
+use crate::file::load_resource_file;
 
 fn query_table(filename: &str) -> Vec<Vec<Value>> {
     let mut rows: Vec<Vec<Value>> = Vec::new();
@@ -62,7 +62,7 @@ pub fn register_table(db: &Connection, table: &str, filename: &str) {
     sql.push_str(" USING cirup(filename=\"");
     sql.push_str(filename);
     sql.push_str("\")");
-    &db.execute_batch(&sql).unwrap();
+    db.execute_batch(&sql).unwrap();
 }
 
 pub fn create_db() -> Connection {

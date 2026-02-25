@@ -3,10 +3,10 @@ use std::fmt;
 use std::fs;
 use std::io::prelude::*;
 
-use file::load_string_from_file;
-use file::{FileFormat, FormatType};
+use crate::file::load_string_from_file;
+use crate::file::FileFormat;
 use std::error::Error;
-use Resource;
+use crate::Resource;
 
 /*
  * .restext file format:
@@ -37,7 +37,6 @@ pub fn escape_newlines(input: &str) -> String {
 
 impl FileFormat for RestextFileFormat {
     const EXTENSION: &'static str = "restext";
-    const TYPE: FormatType = FormatType::Restext;
 
     fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<dyn Error>> {
         let mut resources: Vec<Resource> = Vec::new();
@@ -125,4 +124,11 @@ fn test_restext_write() {
     println!("{}", actual_text);
     println!("{}", expected_text);
     assert_eq!(actual_text, expected_text);
+}
+
+#[test]
+fn test_escape_newlines() {
+    let text = "line1\\line2\r\nline3";
+    let escaped = escape_newlines(text);
+    assert_eq!(escaped, "line1\\\\line2\\r\\nline3");
 }
