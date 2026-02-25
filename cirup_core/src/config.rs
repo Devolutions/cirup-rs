@@ -43,14 +43,17 @@ impl Config {
     }
 
     pub fn new_from_string(contents: &str) -> Result<Self, Box<dyn Error>> {
-        let config: Config = toml::from_str(&contents)?;
+        let config: Config = toml::from_str(contents)?;
         Ok(config)
     }
 }
 
 #[test]
 fn config_read() {
-    let config = Config::new_from_string(include_str!("../test/config.cirup")).unwrap();
+    let config = match Config::new_from_string(include_str!("../test/config.cirup")) {
+        Ok(config) => config,
+        Err(e) => panic!("failed to parse config fixture: {}", e),
+    };
     assert_eq!(config.vcs.plugin, "git");
     assert_eq!(config.sync.source_language, "en");
     assert_eq!(config.sync.source_dir, "resources/i18n");
@@ -62,27 +65,30 @@ fn config_read() {
 fn config_write() {
     let config = Config {
         vcs: Vcs {
-            plugin: "git".to_string(),
-            local_path: "xxx".to_string(),
-            remote_path: "yyy".to_string(),
+            plugin: "git".to_owned(),
+            local_path: "xxx".to_owned(),
+            remote_path: "yyy".to_owned(),
         },
         sync: Sync {
-            source_language: "en".to_string(),
-            target_languages: vec!["fr".to_string(), "de".to_string()],
-            match_language_file: "\\.json$".to_string(),
-            match_language_name: "(.+?)(\\.[^.]*$|$)".to_string(),
-            source_dir: "xxx".to_string(),
-            working_dir: "xxx".to_string(),
+            source_language: "en".to_owned(),
+            target_languages: vec!["fr".to_owned(), "de".to_owned()],
+            match_language_file: "\\.json$".to_owned(),
+            match_language_name: "(.+?)(\\.[^.]*$|$)".to_owned(),
+            source_dir: "xxx".to_owned(),
+            working_dir: "xxx".to_owned(),
         },
     };
 
-    let toml = toml::to_string(&config).unwrap();
-    println!("{}", toml);
+    let toml = match toml::to_string(&config) {
+        Ok(toml) => toml,
+        Err(e) => panic!("failed to serialize config: {}", e),
+    };
+    assert!(!toml.is_empty());
 }
 
 #[test]
 fn config_read_modern_sync() {
-    let config = Config::new_from_string(
+    let config = match Config::new_from_string(
         r#"
 [vcs]
 plugin = "git"
@@ -97,8 +103,10 @@ match_language_name = "(.+?)(\\.[^.]*$|$)"
 source_dir = "resources/i18n"
 working_dir = "/tmp/exports"
 "#,
-    )
-    .unwrap();
+    ) {
+        Ok(config) => config,
+        Err(e) => panic!("failed to parse modern sync config: {}", e),
+    };
 
     assert_eq!(config.sync.target_languages, vec!["fr", "de"]);
     assert_eq!(config.sync.working_dir, "/tmp/exports");

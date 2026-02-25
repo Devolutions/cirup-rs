@@ -103,29 +103,32 @@ fn test_json_parse() {
 
     let file_format = JsonFileFormat {};
 
-    let resources = file_format.parse_from_str(&text).unwrap();
+    let resources = match file_format.parse_from_str(text) {
+        Ok(resources) => resources,
+        Err(e) => panic!("json parse failed: {}", e),
+    };
 
-    let resource = resources.get(0).unwrap();
+    let resource = &resources[0];
     assert_eq!(resource.name, "lblBoat");
     assert_eq!(resource.value, "I'm on a boat.");
 
-    let resource = resources.get(1).unwrap();
+    let resource = &resources[1];
     assert_eq!(resource.name, "lblYolo");
     assert_eq!(resource.value, "You only live once");
 
-    let resource = resources.get(2).unwrap();
+    let resource = &resources[2];
     assert_eq!(resource.name, "lblDogs");
     assert_eq!(resource.value, "Who let the dogs out?");
 
-    let resource = resources.get(3).unwrap();
+    let resource = &resources[3];
     assert_eq!(resource.name, "language.en");
     assert_eq!(resource.value, "English");
 
-    let resource = resources.get(4).unwrap();
+    let resource = &resources[4];
     assert_eq!(resource.name, "language.fr");
     assert_eq!(resource.value, "French");
 
-    let resource = resources.get(5).unwrap();
+    let resource = &resources[5];
     assert_eq!(resource.name, "very.deep.object");
     assert_eq!(resource.value, "value");
 }

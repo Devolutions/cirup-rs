@@ -93,21 +93,21 @@ impl RevisionRange {
         let file_name = file_stem.to_string_lossy();
         let mut split = file_name.split(".").filter(|x| !x.is_empty()).collect::<Vec<_>>();
 
-        if split.len() > 1 {
-            if let Some(revision) = split.pop() {
-                if revision.starts_with('~') && revision.ends_with('~') {
-                    let trimmed = revision.trim_matches('~');
-                    revision_range = RevisionRange::from_string(trimmed);
-                } else {
-                    split.push(revision);
-                }
+        if split.len() > 1
+            && let Some(revision) = split.pop()
+        {
+            if revision.starts_with('~') && revision.ends_with('~') {
+                let trimmed = revision.trim_matches('~');
+                revision_range = RevisionRange::from_string(trimmed);
+            } else {
+                split.push(revision);
             }
         }
 
         let mut file_name = split.join(".");
 
         if let Some(extension) = path.extension() {
-            file_name.push_str(".");
+            file_name.push('.');
             file_name.push_str(&extension.to_string_lossy());
         }
 

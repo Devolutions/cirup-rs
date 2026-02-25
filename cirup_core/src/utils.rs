@@ -1,10 +1,10 @@
 pub(crate) fn sanitized(component: &str) -> String {
     let mut buf = String::with_capacity(component.len());
     for (i, c) in component.chars().enumerate() {
-        let is_lower = ('a'..='z').contains(&c);
-        let is_upper = ('A'..='Z').contains(&c);
+        let is_lower = c.is_ascii_lowercase();
+        let is_upper = c.is_ascii_uppercase();
         let is_letter = is_upper || is_lower;
-        let is_number = ('0'..='9').contains(&c);
+        let is_number = c.is_ascii_digit();
         let is_space = c == ' ';
         let is_hyphen = c == '-';
         let is_underscore = c == '_';

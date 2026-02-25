@@ -144,6 +144,7 @@ impl Vcs for Git {
         unimplemented!();
     }
 
+    #[allow(clippy::print_stdout)]
     fn log(
         &self,
         filespec: &str,
@@ -153,7 +154,7 @@ impl Vcs for Git {
         inclusive: bool,
         limit: u32,
     ) -> Result<(), Box<dyn Error>> {
-        let format = "--pretty=format:%h - %aI - %an - %s".to_string();
+        let format = "--pretty=format:%h - %aI - %an - %s".to_owned();
         let commit = if let Some(old_commit) = old_commit {
             format!(
                 "{}{}..{}",
@@ -241,9 +242,9 @@ impl LogEntry {
 fn iso_formatted_date_test() {
     let log = LogEntry {
         revision: 0,
-        author: "0".to_string(),
-        msg: "0".to_string(),
-        date: "2017-12-23T15:51:26.982890Z".to_string(),
+        author: "0".to_owned(),
+        msg: "0".to_owned(),
+        date: "2017-12-23T15:51:26.982890Z".to_owned(),
     };
     match log.iso_formatted_date() {
         Ok(date) => assert_eq!(date, "2017-12-23T15:51:26+00:00".to_owned()),
@@ -328,6 +329,7 @@ impl Vcs for Svn {
         unimplemented!();
     }
 
+    #[allow(clippy::print_stdout)]
     fn log(
         &self,
         filespec: &str,

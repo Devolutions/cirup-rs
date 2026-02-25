@@ -26,24 +26,13 @@ pub struct Sync {
     temp_dir: tempfile::TempDir,
 }
 
+#[derive(Default)]
 struct LanguageFile {
     name: String,
     path: PathBuf,
     file_name: String,
     _file_ext: String,
     revision: RevisionRange,
-}
-
-impl Default for LanguageFile {
-    fn default() -> LanguageFile {
-        LanguageFile {
-            name: String::new(),
-            path: PathBuf::default(),
-            file_name: String::new(),
-            _file_ext: String::new(),
-            revision: RevisionRange::default(),
-        }
-    }
 }
 
 impl LanguageFile {
@@ -54,12 +43,12 @@ impl LanguageFile {
         };
 
         let file_ext = match path_ref.extension().and_then(OsStr::to_str) {
-            Some(extension) => extension.to_string(),
+            Some(extension) => extension.to_owned(),
             _ => Err(format!("invalid language file {:?}", path_ref))?,
         };
         let (language_revision, path) = RevisionRange::extract_from_file_name(PathBuf::from(path.as_ref()));
         let file_name = match path.file_name().and_then(OsStr::to_str) {
-            Some(file_name) => file_name.to_string(),
+            Some(file_name) => file_name.to_owned(),
             _ => Err(format!("invalid language file {:?}", path_ref))?,
         };
 
@@ -71,7 +60,7 @@ impl LanguageFile {
             Some(captures) => Ok(LanguageFile {
                 name: captures[1].to_string(),
                 path: path_ref,
-                file_name: file_name.to_string(),
+                file_name: file_name.clone(),
                 _file_ext: file_ext,
                 revision: language_revision,
             }),
@@ -87,7 +76,7 @@ fn find_languages(
 ) -> Result<Vec<LanguageFile>, Box<dyn Error>> {
     let mut languages: Vec<LanguageFile> = Vec::new();
 
-    for entry in fs::read_dir(&source_dir)? {
+    for entry in fs::read_dir(source_dir)? {
         if let Ok(language_file) = LanguageFile::load(entry?.path(), match_regex, lang_regex) {
             languages.push(language_file);
         }

@@ -36,7 +36,7 @@ pub(crate) fn output(exe: &str, dir: &Path, args: &[&str]) -> Result<String, Box
 }
 
 pub(crate) fn output_to_file(exe: &str, dir: &Path, args: &[&str], out: &Path) -> Result<(), Box<dyn Error>> {
-    let mut file = OpenOptions::new().write(true).create(true).open(out)?;
+    let mut file = OpenOptions::new().write(true).create(true).truncate(true).open(out)?;
 
     let output = output(exe, dir, args)?;
 
@@ -74,7 +74,7 @@ fn shell_status_success() {
     #[cfg(not(windows))]
     let status = status("sh", dir, &["-c", "exit 0"]);
 
-    assert_eq!(status.unwrap(), 0);
+    assert!(matches!(status, Ok(0)));
 }
 
 #[test]
@@ -85,7 +85,7 @@ fn shell_status_nonzero_exit() {
     #[cfg(not(windows))]
     let status = status("sh", dir, &["-c", "exit 7"]);
 
-    assert_eq!(status.unwrap(), 7);
+    assert!(matches!(status, Ok(7)));
 }
 
 #[test]
