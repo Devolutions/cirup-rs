@@ -137,13 +137,13 @@ impl Sync {
         }
 
         let sync = Sync {
-            vcs: vcs,
-            languages: languages,
+            vcs,
+            languages,
             source_language: config.sync.source_language.clone(),
             source_path: config.sync.source_dir.clone(),
             working_dir: config.sync.working_dir.clone(),
-            match_rex: match_rex,
-            lang_rex: lang_rex,
+            match_rex,
+            lang_rex,
             temp_dir: tempfile::tempdir()?,
         };
 

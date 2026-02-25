@@ -6,14 +6,14 @@ use crate::file::FileFormat;
 use crate::file::{load_string_from_file, save_string_to_file};
 use std::error::Error;
 
-pub struct ResxFileFormat {}
+pub(crate) struct ResxFileFormat {}
 
 fn without_bom(text: &str) -> &[u8] {
     if text.starts_with("\u{feff}") {
         return &text.as_bytes()[3..];
-    };
+    }
 
-    return text.as_bytes();
+    text.as_bytes()
 }
 
 impl FileFormat for ResxFileFormat {
@@ -23,18 +23,20 @@ impl FileFormat for ResxFileFormat {
         let mut resources: Vec<Resource> = Vec::new();
         let bytes = without_bom(text);
 
-        if bytes.len() > 0 {
-            let doc = Document::parse(bytes).unwrap();
-            let root = doc.root.unwrap();
+        if !bytes.is_empty() {
+            let doc = Document::parse(bytes).map_err(|e| format!("resx parse error: {:?}", e))?;
+            let root = doc.root.ok_or("resx root not found")?;
 
-            let children: Vec<&treexml::Element> = root.filter_children(|t| t.name == "data").collect();
+            let children: Vec<&Element> = root.filter_children(|t| t.name == "data").collect();
 
             for data in children {
-                let data_name = data.attributes.get(&"name".to_owned()).unwrap();
-                let value = data.find_child(|tag| tag.name == "value").unwrap().clone();
-                let data_value = value.text.unwrap_or_default().clone();
-                let resource = Resource::new(data_name, data_value.as_ref());
-                resources.push(resource);
+                if let Some(data_name) = data.attributes.get("name")
+                    && let Some(value) = data.find_child(|tag| tag.name == "value")
+                {
+                    let data_value = value.text.clone().unwrap_or_default();
+                    let resource = Resource::new(data_name, data_value.as_ref());
+                    resources.push(resource);
+                }
             }
         }
 
@@ -46,29 +48,29 @@ impl FileFormat for ResxFileFormat {
         self.parse_from_str(text.as_ref())
     }
 
-    fn write_to_str(&self, resources: &Vec<Resource>) -> String {
+    fn write_to_str(&self, resources: &[Resource]) -> String {
         let mut root = Element::new("root");
 
         for resource in resources {
             let mut data = Element::new("data");
-            data.attributes.insert("name".to_string(), resource.name.to_string());
-            data.attributes.insert("xml:space".to_string(), "preserve".to_string());
+            data.attributes.insert("name".to_owned(), resource.name.clone());
+            data.attributes.insert("xml:space".to_owned(), "preserve".to_owned());
             let mut value = Element::new("value");
-            value.text = Some(resource.value.to_string());
+            value.text = Some(resource.value.clone());
             data.children.push(value);
             root.children.push(data);
         }
 
         let doc = Document {
             root: Some(root),
-            encoding: "utf-8".to_string(),
+            encoding: "utf-8".to_owned(),
             ..Document::default()
         };
 
         doc.to_string()
     }
 
-    fn write_to_file(&self, filename: &str, resources: &Vec<Resource>) {
+    fn write_to_file(&self, filename: &str, resources: &[Resource]) {
         let text = self.write_to_str(resources);
         save_string_to_file(filename, text.as_str());
     }
@@ -93,17 +95,20 @@ fn test_resx_parse() {
 
     let file_format = ResxFileFormat {};
 
-    let resources = file_format.parse_from_str(&text).unwrap();
+    let resources = match file_format.parse_from_str(text) {
+        Ok(resources) => resources,
+        Err(e) => panic!("resx parse failed: {}", e),
+    };
 
-    let resource = resources.get(0).unwrap();
+    let resource = &resources[0];
     assert_eq!(resource.name, "lblBoat");
     assert_eq!(resource.value, "I'm on a boat.");
 
-    let resource = resources.get(1).unwrap();
+    let resource = &resources[1];
     assert_eq!(resource.name, "lblYolo");
     assert_eq!(resource.value, "You only live once");
 
-    let resource = resources.get(2).unwrap();
+    let resource = &resources[2];
     assert_eq!(resource.name, "lblDogs");
     assert_eq!(resource.value, "Who let the dogs out?");
 }

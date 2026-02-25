@@ -13,22 +13,22 @@ use crate::resx::ResxFileFormat;
 use std::error::Error;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub enum FormatType {
+pub(crate) enum FormatType {
     Unknown,
     Json,
     Resx,
     Restext,
 }
 
-pub trait FileFormat {
+pub(crate) trait FileFormat {
     const EXTENSION: &'static str;
     fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<dyn Error>>;
     fn parse_from_file(&self, filename: &str) -> Result<Vec<Resource>, Box<dyn Error>>;
-    fn write_to_str(&self, resources: &Vec<Resource>) -> String;
-    fn write_to_file(&self, filename: &str, resources: &Vec<Resource>);
+    fn write_to_str(&self, resources: &[Resource]) -> String;
+    fn write_to_file(&self, filename: &str, resources: &[Resource]);
 }
 
-pub fn get_format_type_from_extension(extension: &str) -> FormatType {
+pub(crate) fn get_format_type_from_extension(extension: &str) -> FormatType {
     match extension {
         JsonFileFormat::EXTENSION => FormatType::Json,
         ResxFileFormat::EXTENSION => FormatType::Resx,
@@ -37,23 +37,23 @@ pub fn get_format_type_from_extension(extension: &str) -> FormatType {
     }
 }
 
-pub fn load_string_from_file(filename: &str) -> Result<String, Box<dyn Error>> {
+pub(crate) fn load_string_from_file(filename: &str) -> Result<String, Box<dyn Error>> {
     if let Some(text) = vfile_get(filename) {
         return Ok(text);
     }
-    let mut file = fs::File::open(filename).unwrap();
+    let mut file = fs::File::open(filename)?;
     let mut text = String::new();
-    file.read_to_string(&mut text).unwrap();
+    file.read_to_string(&mut text)?;
     Ok(text)
 }
 
-pub fn save_string_to_file(filename: &str, text: &str) {
-    let mut file = fs::File::create(filename).unwrap();
-    file.write_all(text.as_bytes()).unwrap();
+pub(crate) fn save_string_to_file(filename: &str, text: &str) {
+    let mut file = fs::File::create(filename).expect("failed to create output file");
+    file.write_all(text.as_bytes()).expect("failed to write output file");
 }
 
 #[cfg(test)]
-pub fn load_resource_str(text: &str, extension: &str) -> Result<Vec<Resource>, Box<dyn Error>> {
+pub(crate) fn load_resource_str(text: &str, extension: &str) -> Result<Vec<Resource>, Box<dyn Error>> {
     match extension {
         JsonFileFormat::EXTENSION => {
             let file_format = JsonFileFormat {};
@@ -71,9 +71,12 @@ pub fn load_resource_str(text: &str, extension: &str) -> Result<Vec<Resource>, B
     }
 }
 
-pub fn load_resource_file(filename: &str) -> Result<Vec<Resource>, Box<dyn Error>> {
+pub(crate) fn load_resource_file(filename: &str) -> Result<Vec<Resource>, Box<dyn Error>> {
     let path = Path::new(filename);
-    let extension = path.extension().unwrap().to_str().unwrap();
+    let extension = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .ok_or_else(|| format!("file '{}' has no valid extension", filename))?;
     match get_format_type_from_extension(extension) {
         FormatType::Json => {
             let file_format = JsonFileFormat {};
@@ -91,9 +94,12 @@ pub fn load_resource_file(filename: &str) -> Result<Vec<Resource>, Box<dyn Error
     }
 }
 
-pub fn save_resource_file(filename: &str, resources: &Vec<Resource>) {
+pub(crate) fn save_resource_file(filename: &str, resources: &[Resource]) {
     let path = Path::new(filename);
-    let extension = path.extension().unwrap().to_str().unwrap();
+    let extension = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .unwrap_or_default();
     match get_format_type_from_extension(extension) {
         FormatType::Json => {
             let file_format = JsonFileFormat {};
@@ -118,33 +124,33 @@ lazy_static! {
     };
 }
 
-pub fn vfile_set(id: &str, data: &str) {
-    let mut map = HASHMAP.lock().unwrap();
-    map.insert(id.to_string(), data.to_string());
+pub(crate) fn vfile_set(id: &str, data: &str) {
+    if let Ok(mut map) = HASHMAP.lock() {
+        map.insert(id.to_owned(), data.to_owned());
+    }
 }
 
-pub fn vfile_get(id: &str) -> Option<String> {
-    let map = HASHMAP.lock().unwrap();
-    if let Some(val) = map.get(id) {
-        Some(val.to_string())
-    } else {
-        None
-    }
+pub(crate) fn vfile_get(id: &str) -> Option<String> {
+    let map = HASHMAP.lock().ok()?;
+    map.get(id).cloned()
 }
 
 #[test]
 fn test_vfile() {
     vfile_set("59398a3e-757b-4844-b103-047d32324a4e", "foo");
     vfile_set("48acadf4-4821-49df-a318-537db5000d2b", "bar");
-    let foo = vfile_get("59398a3e-757b-4844-b103-047d32324a4e").unwrap();
-    assert_eq!(foo, "foo");
-    let bar = vfile_get("48acadf4-4821-49df-a318-537db5000d2b").unwrap();
-    assert_eq!(bar, "bar");
+    assert_eq!(
+        vfile_get("59398a3e-757b-4844-b103-047d32324a4e").as_deref(),
+        Some("foo")
+    );
+    assert_eq!(
+        vfile_get("48acadf4-4821-49df-a318-537db5000d2b").as_deref(),
+        Some("bar")
+    );
 
     let test_json = include_str!("../test/test.json");
     vfile_set("test.json", test_json);
-    let value = vfile_get("test.json").unwrap();
-    assert_eq!(value, test_json);
+    assert_eq!(vfile_get("test.json").as_deref(), Some(test_json));
 }
 
 #[test]

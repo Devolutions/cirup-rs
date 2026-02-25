@@ -18,11 +18,11 @@ lazy_static! {
     static ref REGEX_RESTEXT: Regex = Regex::new(r"^\s*(\w+)=(.*)$").unwrap();
 }
 
-pub struct RestextFileFormat {}
+pub(crate) struct RestextFileFormat {}
 
 /* https://lise-henry.github.io/articles/optimising_strings.html */
 
-pub fn escape_newlines(input: &str) -> String {
+pub(crate) fn escape_newlines(input: &str) -> String {
     let mut output = String::new();
     for c in input.chars() {
         match c {
@@ -59,7 +59,7 @@ impl FileFormat for RestextFileFormat {
         self.parse_from_str(text.as_ref())
     }
 
-    fn write_to_str(&self, resources: &Vec<Resource>) -> String {
+    fn write_to_str(&self, resources: &[Resource]) -> String {
         let mut output = String::new();
 
         for resource in resources {
@@ -70,7 +70,7 @@ impl FileFormat for RestextFileFormat {
         output
     }
 
-    fn write_to_file(&self, filename: &str, resources: &Vec<Resource>) {
+    fn write_to_file(&self, filename: &str, resources: &[Resource]) {
         let bom: [u8; 3] = [0xEF, 0xBB, 0xBF];
         let text = self.write_to_str(resources);
         let mut file = fs::File::create(filename).unwrap();

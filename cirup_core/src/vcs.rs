@@ -32,8 +32,8 @@ pub trait Vcs {
 }
 
 pub mod vcs_type {
-    pub const GIT: &'static str = "git";
-    pub const SVN: &'static str = "svn";
+    pub const GIT: &str = "git";
+    pub const SVN: &str = "svn";
 }
 
 #[derive(Default)]
@@ -73,7 +73,7 @@ pub fn new(config: &config::Config) -> Result<Box<dyn Vcs>, Box<dyn Error>> {
             Some(p) => {
                 meta.name = vcs_type::GIT.to_owned();
                 meta.executable = p.to_str().ok_or("git path contains invalid UTF-8")?.to_owned();
-                Ok(Box::new(Git { meta: meta }))
+                Ok(Box::new(Git { meta }))
             }
             None => Err("cannot find git binary")?,
         },
@@ -81,7 +81,7 @@ pub fn new(config: &config::Config) -> Result<Box<dyn Vcs>, Box<dyn Error>> {
             Some(p) => {
                 meta.name = vcs_type::SVN.to_owned();
                 meta.executable = p.to_str().ok_or("svn path contains invalid UTF-8")?.to_owned();
-                Ok(Box::new(Svn { meta: meta }))
+                Ok(Box::new(Svn { meta }))
             }
             None => Err("cannot find svn binary")?,
         },
@@ -245,10 +245,10 @@ fn iso_formatted_date_test() {
         msg: "0".to_string(),
         date: "2017-12-23T15:51:26.982890Z".to_string(),
     };
-    assert_eq!(
-        log.iso_formatted_date().unwrap(),
-        "2017-12-23T15:51:26+00:00".to_string()
-    );
+    match log.iso_formatted_date() {
+        Ok(date) => assert_eq!(date, "2017-12-23T15:51:26+00:00".to_owned()),
+        Err(e) => panic!("iso_formatted_date failed: {}", e),
+    }
 }
 
 impl Svn {
@@ -259,26 +259,24 @@ impl Svn {
 
 #[test]
 fn test_status_conflicts() {
-    assert_eq!(
-        false,
+    assert!(matches!(
         Svn::status_has_conflicts(
             "\
 --- Merging r6429 through r6736 into '.':
 U    UIResources.it.resx
 U    MsgResources.pl.resx"
-        )
-        .unwrap()
-    );
-    assert_eq!(
-        true,
+        ),
+        Ok(false)
+    ));
+    assert!(matches!(
         Svn::status_has_conflicts(
             "\
 --- Merging r6429 through r6736 into '.':
 U    UIResources.it.resx
 C    MsgResources.pl.resx"
-        )
-        .unwrap()
-    );
+        ),
+        Ok(true)
+    ));
 }
 
 impl Vcs for Svn {

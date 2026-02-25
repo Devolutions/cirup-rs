@@ -1,4 +1,4 @@
-pub fn sanitized(component: &str) -> String {
+pub(crate) fn sanitized(component: &str) -> String {
     let mut buf = String::with_capacity(component.len());
     for (i, c) in component.chars().enumerate() {
         let is_lower = ('a'..='z').contains(&c);

@@ -39,7 +39,7 @@ pub fn print_pretty(columns: Vec<String>, values: &mut Rows<'_>) {
     println!("{}", table);
 }
 
-pub fn print_resources_pretty(resources: &Vec<Resource>) {
+pub fn print_resources_pretty(resources: &[Resource]) {
     let mut table: Table = Table::new();
 
     table.add_row(row!["name", "value"]); // table header
@@ -54,8 +54,8 @@ pub fn print_resources_pretty(resources: &Vec<Resource>) {
     println!("{}", table);
 }
 
-pub fn print_triples_pretty(triples: &Vec<Triple>) {
-    for triple in triples.iter() {
+pub fn print_triples_pretty(triples: &[Triple]) {
+    for triple in triples {
         println!("name: {}", triple.name);
         println!("base: {}", triple.base);
         println!("value: {}", triple.value);
@@ -193,6 +193,12 @@ impl CirupEngine {
     }
 }
 
+impl Default for CirupEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct CirupQuery {
     engine: CirupEngine,
     query: String,
@@ -276,33 +282,33 @@ impl CirupQuery {
         let engine = CirupEngine::new();
         engine.register_table_from_file("A", file_one);
 
-        if file_two.is_some() {
-            engine.register_table_from_file("B", file_two.unwrap());
+        if let Some(file_two) = file_two {
+            engine.register_table_from_file("B", file_two);
         }
 
-        if file_three.is_some() {
-            engine.register_table_from_file("C", file_three.unwrap());
+        if let Some(file_three) = file_three {
+            engine.register_table_from_file("C", file_three);
         }
 
         CirupQuery {
-            engine: engine,
-            query: query.to_string(),
+            engine,
+            query: query.to_owned(),
         }
     }
 
     pub fn run(&self) -> Vec<Resource> {
-        return self.engine.query_resource(&self.query);
+        self.engine.query_resource(&self.query)
     }
 
     pub fn run_triple(&self) -> Vec<Triple> {
-        return self.engine.query_triple(&self.query);
+        self.engine.query_triple(&self.query)
     }
 
     pub fn run_interactive(&self, out_file: Option<&str>) {
         let resources = self.run();
 
-        if out_file.is_some() {
-            save_resource_file(out_file.unwrap(), &resources);
+        if let Some(out_file) = out_file {
+            save_resource_file(out_file, &resources);
         } else {
             print_resources_pretty(&resources);
         }
@@ -342,7 +348,10 @@ fn test_query_subtract() {
 
     engine.register_table_from_str("A", "test1A.restext", include_str!("../test/subtract/test1A.restext"));
     engine.register_table_from_str("B", "test1B.restext", include_str!("../test/subtract/test1B.restext"));
-    let expected = load_resource_str(include_str!("../test/subtract/test1C.restext"), "restext").unwrap();
+    let expected = match load_resource_str(include_str!("../test/subtract/test1C.restext"), "restext") {
+        Ok(resources) => resources,
+        Err(e) => panic!("failed to parse expected restext fixture: {}", e),
+    };
 
     let actual = engine.query_resource("SELECT * FROM A WHERE A.key NOT IN (SELECT B.key FROM B)");
     assert_eq!(actual, expected);

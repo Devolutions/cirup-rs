@@ -11,7 +11,7 @@ use crate::file::FileFormat;
 use crate::file::{load_string_from_file, save_string_to_file};
 use std::error::Error;
 
-pub struct JsonFileFormat {}
+pub(crate) struct JsonFileFormat {}
 
 fn json_dot_insert(root_map: &mut Map<String, Value>, name: &str, value: &str) {
     if let Some(dot_index) = name.find('.') {
@@ -20,13 +20,14 @@ fn json_dot_insert(root_map: &mut Map<String, Value>, name: &str, value: &str) {
 
         if !root_map.contains_key(root_path) {
             let child_map: Map<String, Value> = Map::new();
-            root_map.insert(root_path.to_string(), Value::Object(child_map));
+            root_map.insert(root_path.to_owned(), Value::Object(child_map));
         }
 
-        let mut child_map = root_map.get_mut(root_path).unwrap().as_object_mut().unwrap();
-        json_dot_insert(&mut child_map, child_path, value);
+        if let Some(Value::Object(child_map)) = root_map.get_mut(root_path) {
+            json_dot_insert(child_map, child_path, value);
+        }
     } else {
-        root_map.insert(name.to_string(), Value::String(value.to_string()));
+        root_map.insert(name.to_owned(), Value::String(value.to_owned()));
     }
 }
 
@@ -34,8 +35,10 @@ fn json_to_string_pretty(value: &Map<String, Value>) -> String {
     let writer = Vec::new();
     let formatter = serde_json::ser::PrettyFormatter::with_indent(b"    ");
     let mut ser = serde_json::Serializer::with_formatter(writer, formatter);
-    value.serialize(&mut ser).unwrap();
-    String::from_utf8(ser.into_inner()).unwrap()
+    if value.serialize(&mut ser).is_err() {
+        return "{}".to_owned();
+    }
+    String::from_utf8(ser.into_inner()).unwrap_or_default()
 }
 
 impl FileFormat for JsonFileFormat {
@@ -45,10 +48,15 @@ impl FileFormat for JsonFileFormat {
         let mut resources: Vec<Resource> = Vec::new();
         let root_value: Value = serde_json::from_str(text)?;
         let root_value_dot = value_to_dot(&root_value);
-        let root_object_dot = root_value_dot.as_object().unwrap();
+        let root_object_dot = match root_value_dot.as_object() {
+            Some(object) => object,
+            None => Err("json dot value is not an object")?,
+        };
         for (key, value) in root_object_dot.iter() {
-            let resource = Resource::new(key.as_str(), value.as_str().unwrap());
-            resources.push(resource);
+            if let Some(value) = value.as_str() {
+                let resource = Resource::new(key.as_str(), value);
+                resources.push(resource);
+            }
         }
         Ok(resources)
     }
@@ -58,7 +66,7 @@ impl FileFormat for JsonFileFormat {
         self.parse_from_str(text.as_ref())
     }
 
-    fn write_to_str(&self, resources: &Vec<Resource>) -> String {
+    fn write_to_str(&self, resources: &[Resource]) -> String {
         let mut root_map: Map<String, Value> = Map::new();
 
         for resource in resources {
@@ -68,7 +76,7 @@ impl FileFormat for JsonFileFormat {
         json_to_string_pretty(&root_map)
     }
 
-    fn write_to_file(&self, filename: &str, resources: &Vec<Resource>) {
+    fn write_to_file(&self, filename: &str, resources: &[Resource]) {
         let text = self.write_to_str(resources);
         save_string_to_file(filename, text.as_str());
     }

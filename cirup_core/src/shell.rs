@@ -9,11 +9,11 @@ use std::process::Stdio;
 use std::str;
 
 #[cfg(windows)]
-const LOCATE_COMMAND: &'static str = "where";
+const LOCATE_COMMAND: &str = "where";
 #[cfg(not(windows))]
-const LOCATE_COMMAND: &'static str = "which";
+const LOCATE_COMMAND: &str = "which";
 
-pub fn status(exe: &str, dir: &Path, args: &[&str]) -> Result<i32, Box<dyn Error>> {
+pub(crate) fn status(exe: &str, dir: &Path, args: &[&str]) -> Result<i32, Box<dyn Error>> {
     trace!("{} {:?}", exe, args);
     let status = Command::new(exe)
         .current_dir(dir)
@@ -28,14 +28,14 @@ pub fn status(exe: &str, dir: &Path, args: &[&str]) -> Result<i32, Box<dyn Error
     }
 }
 
-pub fn output(exe: &str, dir: &Path, args: &[&str]) -> Result<String, Box<dyn Error>> {
+pub(crate) fn output(exe: &str, dir: &Path, args: &[&str]) -> Result<String, Box<dyn Error>> {
     trace!("{} {:?}", exe, args);
     let output = Command::new(exe).current_dir(dir).args(args).output()?;
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
-pub fn output_to_file(exe: &str, dir: &Path, args: &[&str], out: &Path) -> Result<(), Box<dyn Error>> {
+pub(crate) fn output_to_file(exe: &str, dir: &Path, args: &[&str], out: &Path) -> Result<(), Box<dyn Error>> {
     let mut file = OpenOptions::new().write(true).create(true).open(out)?;
 
     let output = output(exe, dir, args)?;
@@ -45,7 +45,7 @@ pub fn output_to_file(exe: &str, dir: &Path, args: &[&str], out: &Path) -> Resul
     Ok(())
 }
 
-pub fn find_binary(binary: &str) -> Option<::std::path::PathBuf> {
+pub(crate) fn find_binary(binary: &str) -> Option<::std::path::PathBuf> {
     let output = Command::new(LOCATE_COMMAND).arg(binary).output().ok()?;
     let output_text = str::from_utf8(&output.stdout).ok()?;
     let bin = output_text.trim().lines().next()?;

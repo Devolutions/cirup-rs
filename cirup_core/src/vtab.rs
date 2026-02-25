@@ -53,7 +53,7 @@ fn get_schema() -> Option<String> {
     create_schema(&names, &types)
 }
 
-pub fn register_table(db: &Connection, table: &str, filename: &str) {
+pub(crate) fn register_table(db: &Connection, table: &str, filename: &str) {
     let mut sql = String::from("CREATE VIRTUAL TABLE ");
     sql.push_str(table);
     sql.push_str(" USING cirup(filename=\"");
@@ -62,20 +62,20 @@ pub fn register_table(db: &Connection, table: &str, filename: &str) {
     db.execute_batch(&sql).unwrap();
 }
 
-pub fn create_db() -> Connection {
+pub(crate) fn create_db() -> Connection {
     let db = Connection::open_in_memory().unwrap();
     load_module(&db).unwrap();
     db
 }
 
-pub fn init_db(table: &str, filename: &str) -> Connection {
+pub(crate) fn init_db(table: &str, filename: &str) -> Connection {
     let db = Connection::open_in_memory().unwrap();
     load_module(&db).unwrap();
     register_table(&db, table, filename);
     db
 }
 
-pub fn load_module(conn: &Connection) -> Result<()> {
+pub(crate) fn load_module(conn: &Connection) -> Result<()> {
     let aux: Option<()> = None;
     conn.create_module("cirup", &CIRUP_MODULE, aux)
 }
