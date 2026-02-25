@@ -4,6 +4,7 @@ extern crate treexml;
 extern crate uuid;
 
 extern crate dot_json;
+#[cfg(feature = "rusqlite-c")]
 extern crate rusqlite;
 extern crate serde;
 extern crate serde_json;
@@ -33,7 +34,7 @@ mod restext;
 mod resx;
 
 mod file;
-mod vtab;
+mod query_backend;
 
 pub mod query;
 

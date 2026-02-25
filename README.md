@@ -42,6 +42,71 @@ match_language_name = "(.+?)(\\.[^.]*$|$)"
 source_dir = "resources/i18n"
 # The location to export and import translations from
 working_dir = "/opt/wayk/i18n/WaykNow-Translations"
+
+[query]
+# Query backend: rusqlite | turso-local | turso-remote
+backend = "turso-local"
+
+[query.turso]
+# Required when using turso-remote
+url = "libsql://your-org.turso.io"
+auth_token = ""
+```
+
+### Query backend notes
+
+- Default backend is `turso-local`.
+- Default build enables `turso-rust`, so no C-backed SQLite dependency is built by default.
+- Enable `rusqlite` (C-backed SQLite) explicitly with the `rusqlite-c` feature:
+
+```bash
+cargo run -p cirup_cli --features rusqlite-c -- --config ./config.cirup pull
+```
+
+- Turso backends (`turso-local` and `turso-remote`) are available with default features:
+
+```bash
+cargo run -p cirup_cli -- --config ./config.cirup pull
+```
+
+- For file commands without a config, you can override the default at runtime:
+
+```bash
+set CIRUP_QUERY_BACKEND=turso-local
+cirup file-diff a.json b.json
+```
+
+- For `turso-remote` without config, set the connection values via env vars:
+
+```bash
+set CIRUP_QUERY_BACKEND=turso-remote
+set CIRUP_TURSO_URL=libsql://your-org.turso.io
+set CIRUP_TURSO_AUTH_TOKEN=your-token
+cirup file-diff a.json b.json
+```
+
+## Large RESX benchmark fixtures
+
+Benchmark fixtures are stored in:
+
+- `cirup_core/test/benchmark/rdm_resx`
+
+Quick fixture sanity check:
+
+```bash
+cargo test -p cirup_core benchmark_fixture_set_is_present
+```
+
+Run large-file performance benchmark (rusqlite):
+
+```bash
+cargo test -p cirup_core --features rusqlite-c benchmark_performance_rusqlite_large_resx -- --ignored --nocapture
+```
+
+Run large-file correctness benchmark (rusqlite vs turso-local):
+
+```bash
+cargo test -p cirup_core --features rusqlite-c benchmark_correctness_rusqlite_vs_turso_local -- --ignored --nocapture
 ```
 
 ## Main commands

@@ -9,6 +9,7 @@ use regex::Regex;
 use tempfile;
 
 use crate::config::Config;
+use crate::config::QueryConfig;
 use crate::query;
 use crate::revision::RevisionRange;
 use crate::utils::*;
@@ -21,6 +22,7 @@ pub struct Sync {
     source_language: String,
     source_path: String,
     working_dir: String,
+    query_config: QueryConfig,
     match_rex: Regex,
     lang_rex: Regex,
     temp_dir: tempfile::TempDir,
@@ -131,6 +133,7 @@ impl Sync {
             source_language: config.sync.source_language.clone(),
             source_path: config.sync.source_dir.clone(),
             working_dir: config.sync.working_dir.clone(),
+            query_config: config.query.clone(),
             match_rex,
             lang_rex,
             temp_dir: tempfile::tempdir()?,
@@ -199,9 +202,17 @@ impl Sync {
             );
 
             let query: query::CirupQuery = if show_changes {
-                query::query_change(&new_path.to_string_lossy(), &old_path.to_string_lossy())
+                query::query_change_with_config(
+                    &new_path.to_string_lossy(),
+                    &old_path.to_string_lossy(),
+                    &self.query_config,
+                )
             } else {
-                query::query_diff(&new_path.to_string_lossy(), &old_path.to_string_lossy())
+                query::query_diff_with_config(
+                    &new_path.to_string_lossy(),
+                    &old_path.to_string_lossy(),
+                    &self.query_config,
+                )
             };
 
             query.run_interactive(Some(&source_path_out.to_string_lossy()));
@@ -246,11 +257,12 @@ impl Sync {
                     FROM B
                     INNER JOIN A on (A.key = B.key) AND (A.val <> B.val)";
 
-                let query = query::CirupQuery::new(
+                let query = query::CirupQuery::new_with_query_config(
                     query_string,
                     &source_path_out.to_string_lossy(),
                     Some(&translation_file.path.to_string_lossy()),
                     None,
+                    &self.query_config,
                 );
                 let file_path =
                     rev.append_to_file_name(Path::new(self.temp_dir.path()).join(&translation_file.file_name))?;
@@ -273,8 +285,11 @@ impl Sync {
                             translation_file.path.display(),
                             vcs_language_file.path.display()
                         );
-                        let query =
-                            query::query_merge(&vcs_language_file.path.to_string_lossy(), &file_path.to_string_lossy());
+                        let query = query::query_merge_with_config(
+                            &vcs_language_file.path.to_string_lossy(),
+                            &file_path.to_string_lossy(),
+                            &self.query_config,
+                        );
                         query.run_interactive(Some(&vcs_language_file.path.to_string_lossy()));
                         info!(
                             "merged translation for {} from {} into {}",
@@ -339,18 +354,23 @@ impl Sync {
             )?;
 
             let query: query::CirupQuery = if old_commit.is_none() {
-                query::query_diff(&source_path_out.to_string_lossy(), &file_path.to_string_lossy())
+                query::query_diff_with_config(
+                    &source_path_out.to_string_lossy(),
+                    &file_path.to_string_lossy(),
+                    &self.query_config,
+                )
             } else {
                 let query_string = r"
                     SELECT
                         A.key, A.val
                     FROM A
                     LEFT OUTER JOIN B on A.key = B.key";
-                query::CirupQuery::new(
+                query::CirupQuery::new_with_query_config(
                     query_string,
                     &source_path_out.to_string_lossy(),
                     Some(&file_path.to_string_lossy()),
                     None,
+                    &self.query_config,
                 )
             };
 
