@@ -33,7 +33,7 @@ mod restext;
 mod resx;
 
 mod file;
-mod vtab;
+mod query_backend;
 
 pub mod query;
 

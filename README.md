@@ -42,6 +42,40 @@ match_language_name = "(.+?)(\\.[^.]*$|$)"
 source_dir = "resources/i18n"
 # The location to export and import translations from
 working_dir = "/opt/wayk/i18n/WaykNow-Translations"
+
+[query]
+# Query backend: rusqlite | turso-local | turso-remote
+backend = "rusqlite"
+
+[query.turso]
+# Required when using turso-remote
+url = "libsql://your-org.turso.io"
+auth_token = ""
+```
+
+### Query backend notes
+
+- Default backend is `rusqlite`.
+- Enable Turso backends (`turso-local` and `turso-remote`) with the `turso-rust` feature:
+
+```bash
+cargo run -p cirup_cli --features turso-rust -- --config ./config.cirup pull
+```
+
+- For file commands without a config, you can override the default at runtime:
+
+```bash
+set CIRUP_QUERY_BACKEND=turso-local
+cirup file-diff a.json b.json
+```
+
+- For `turso-remote` without config, set the connection values via env vars:
+
+```bash
+set CIRUP_QUERY_BACKEND=turso-remote
+set CIRUP_TURSO_URL=libsql://your-org.turso.io
+set CIRUP_TURSO_AUTH_TOKEN=your-token
+cirup file-diff a.json b.json
 ```
 
 ## Main commands

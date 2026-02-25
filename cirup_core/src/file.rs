@@ -124,6 +124,7 @@ lazy_static! {
     };
 }
 
+#[cfg(test)]
 pub(crate) fn vfile_set(id: &str, data: &str) {
     if let Ok(mut map) = HASHMAP.lock() {
         map.insert(id.to_owned(), data.to_owned());

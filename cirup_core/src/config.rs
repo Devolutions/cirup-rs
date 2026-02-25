@@ -1,15 +1,63 @@
 use std::error::Error;
 use std::fs;
 use std::path::Path;
+use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 use toml;
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum QueryBackendKind {
+    #[default]
+    Rusqlite,
+    TursoLocal,
+    TursoRemote,
+}
+
+impl QueryBackendKind {
+    pub fn parse(value: &str) -> Option<Self> {
+        Self::from_str(value).ok()
+    }
+}
+
+impl FromStr for QueryBackendKind {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "rusqlite" => Ok(QueryBackendKind::Rusqlite),
+            "turso-local" | "turso_local" | "turso" => Ok(QueryBackendKind::TursoLocal),
+            "turso-remote" | "turso_remote" | "libsql-remote" | "libsql_remote" => Ok(QueryBackendKind::TursoRemote),
+            _ => Err(format!(
+                "unsupported query backend '{}': expected one of rusqlite, turso-local, turso-remote",
+                value
+            )),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Default)]
+pub struct TursoConfig {
+    pub url: Option<String>,
+    pub auth_token: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Default)]
+pub struct QueryConfig {
+    #[serde(default)]
+    pub backend: QueryBackendKind,
+    #[serde(default)]
+    pub turso: TursoConfig,
+}
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Config {
     pub vcs: Vcs,
     #[serde(alias = "job")]
     pub sync: Sync,
+    #[serde(default)]
+    pub query: QueryConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -77,6 +125,7 @@ fn config_write() {
             source_dir: "xxx".to_owned(),
             working_dir: "xxx".to_owned(),
         },
+        query: QueryConfig::default(),
     };
 
     let toml = match toml::to_string(&config) {
@@ -110,4 +159,37 @@ working_dir = "/tmp/exports"
 
     assert_eq!(config.sync.target_languages, vec!["fr", "de"]);
     assert_eq!(config.sync.working_dir, "/tmp/exports");
+}
+
+#[test]
+fn config_read_query_backend() {
+    let config = match Config::new_from_string(
+        r#"
+[vcs]
+plugin = "git"
+local_path = "/repo"
+remote_path = "git@example/repo.git"
+
+[sync]
+source_language = "en"
+match_language_file = "\\.json$"
+match_language_name = "(.+?)(\\.[^.]*$|$)"
+source_dir = "resources/i18n"
+working_dir = "/tmp/exports"
+
+[query]
+backend = "turso-local"
+
+[query.turso]
+url = "libsql://acme.turso.io"
+auth_token = "token"
+"#,
+    ) {
+        Ok(config) => config,
+        Err(e) => panic!("failed to parse query backend config: {}", e),
+    };
+
+    assert_eq!(config.query.backend, QueryBackendKind::TursoLocal);
+    assert_eq!(config.query.turso.url.as_deref(), Some("libsql://acme.turso.io"));
+    assert_eq!(config.query.turso.auth_token.as_deref(), Some("token"));
 }

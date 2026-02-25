@@ -2,41 +2,11 @@
 
 use prettytable::{Cell, Row, Table};
 
-use rusqlite::Rows;
-use rusqlite::types::*;
-use rusqlite::{Connection, Error, Statement};
-
-use crate::file::{save_resource_file, vfile_set};
-use crate::vtab::{create_db, init_db, register_table};
+use crate::config::{QueryBackendKind, QueryConfig};
+use crate::file::save_resource_file;
+use crate::query_backend::{QueryBackend, build_backend};
 
 use crate::{Resource, Triple};
-
-#[allow(clippy::print_stdout)]
-pub fn print_pretty(columns: Vec<String>, values: &mut Rows<'_>) {
-    let mut row = Row::empty();
-    let mut table: Table = Table::new();
-    //write header first
-    table.set_titles(columns.iter().collect());
-    while let Some(v) = values.next() {
-        if let Ok(res) = v {
-            for i in 0..res.column_count() {
-                let val = Value::data_type(&res.get(i));
-                match val {
-                    Type::Real | Type::Integer => {
-                        row.add_cell(Cell::new(&res.get::<usize, i64>(i).to_string()));
-                    }
-                    Type::Text => row.add_cell(Cell::new(&res.get::<usize, String>(i))),
-                    _ => {
-                        // Do nothing.
-                    }
-                }
-            }
-            table.add_row(row);
-            row = Row::empty();
-        }
-    }
-    println!("{}", table);
-}
 
 #[allow(clippy::print_stdout)]
 pub fn print_resources_pretty(resources: &[Resource]) {
@@ -64,116 +34,72 @@ pub fn print_triples_pretty(triples: &[Triple]) {
     }
 }
 
-fn get_statement_column_names(statement: &Statement<'_>) -> Vec<String> {
-    let mut column_names = Vec::new();
-    for column_name in statement.column_names().iter() {
-        column_names.push(column_name.to_string());
-    }
-    column_names
+fn default_query_backend() -> QueryBackendKind {
+    std::env::var("CIRUP_QUERY_BACKEND")
+        .ok()
+        .and_then(|value| QueryBackendKind::parse(&value))
+        .unwrap_or_default()
 }
 
-pub fn execute_query(db: &Connection, query: &str) {
-    let stmt = db.prepare(query);
+fn default_query_config() -> QueryConfig {
+    let mut query_config = QueryConfig::default();
+    query_config.backend = default_query_backend();
 
-    match stmt {
-        Ok(mut statement) => {
-            let column_names = get_statement_column_names(&statement);
-            if let Ok(mut response) = statement.query(&[]) {
-                print_pretty(column_names, &mut response);
-            }
-        }
-        Err(e) => match e {
-            Error::SqliteFailure(_r, m) => {
-                if let Some(msg) = m {
-                    error!("{}", msg)
-                };
-            }
-            _ => error!("{:?}", Error::ModuleError(format!("{}", e))),
-        },
-    }
-}
+    query_config.turso.url = std::env::var("CIRUP_TURSO_URL")
+        .ok()
+        .or_else(|| std::env::var("LIBSQL_URL").ok())
+        .or_else(|| std::env::var("LIBSQL_HRANA_URL").ok());
+    query_config.turso.auth_token = std::env::var("CIRUP_TURSO_AUTH_TOKEN")
+        .ok()
+        .or_else(|| std::env::var("LIBSQL_AUTH_TOKEN").ok())
+        .or_else(|| std::env::var("TURSO_AUTH_TOKEN").ok());
 
-pub fn execute_query_resource(db: &Connection, query: &str) -> Vec<Resource> {
-    let mut resources: Vec<Resource> = Vec::new();
-    let mut statement = match db.prepare(query) {
-        Ok(statement) => statement,
-        Err(_) => return resources,
-    };
-    let mut response = match statement.query(&[]) {
-        Ok(response) => response,
-        Err(_) => return resources,
-    };
-
-    while let Some(v) = response.next() {
-        if let Ok(res) = v {
-            let name = &res.get::<usize, String>(0);
-            let value = &res.get::<usize, String>(1);
-            let resource = Resource::new(name, value);
-            resources.push(resource);
-        }
-    }
-
-    resources
-}
-
-pub fn execute_query_triple(db: &Connection, query: &str) -> Vec<Triple> {
-    let mut resources: Vec<Triple> = Vec::new();
-    let mut statement = match db.prepare(query) {
-        Ok(statement) => statement,
-        Err(_) => return resources,
-    };
-    let mut response = match statement.query(&[]) {
-        Ok(response) => response,
-        Err(_) => return resources,
-    };
-
-    while let Some(v) = response.next() {
-        if let Ok(res) = v {
-            let name = &res.get::<usize, String>(0);
-            let value = &res.get::<usize, String>(1);
-            let base = &res.get::<usize, String>(2);
-            let resource = Triple::new(name, value, base);
-            resources.push(resource);
-        }
-    }
-
-    resources
+    query_config
 }
 
 pub fn query_file(input: &str, table: &str, query: &str) {
-    let db = init_db(table, input);
-    execute_query(&db, query);
+    let mut engine = CirupEngine::new();
+    engine.register_table_from_file(table, input);
+    let resources = engine.query_resource(query);
+    print_resources_pretty(&resources);
 }
 
 pub struct CirupEngine {
-    pub db: Connection,
+    backend: Box<dyn QueryBackend>,
 }
 
 impl CirupEngine {
     pub fn new() -> Self {
-        CirupEngine { db: create_db() }
+        Self::with_query_config(&default_query_config())
     }
 
-    #[allow(dead_code)]
-    fn register_table_from_str(&self, table: &str, filename: &str, data: &str) {
-        vfile_set(filename, data);
-        register_table(&self.db, table, filename);
+    pub fn with_backend(kind: QueryBackendKind) -> Self {
+        let mut query_config = default_query_config();
+        query_config.backend = kind;
+        Self::with_query_config(&query_config)
     }
 
-    pub fn register_table_from_file(&self, table: &str, filename: &str) {
-        register_table(&self.db, table, filename);
+    pub fn with_query_config(query_config: &QueryConfig) -> Self {
+        Self {
+            backend: build_backend(query_config),
+        }
+    }
+
+    #[cfg(test)]
+    fn register_table_from_str(&mut self, table: &str, filename: &str, data: &str) {
+        self.backend.register_table_from_str(table, filename, data);
+    }
+
+    pub fn register_table_from_file(&mut self, table: &str, filename: &str) {
+        self.backend.register_table_from_file(table, filename);
     }
 
     pub fn query_resource(&self, query: &str) -> Vec<Resource> {
-        execute_query_resource(&self.db, query)
+        self.backend.query_resource(query)
     }
 
     pub fn query_triple(&self, query: &str) -> Vec<Triple> {
-        execute_query_triple(&self.db, query)
-    }
-
-    pub fn query(&self, query: &str) {
-        execute_query(&self.db, query);
+        self.backend.query_triple(query)
     }
 }
 
@@ -226,44 +152,114 @@ const CONVERT_QUERY: &str = "SELECT * FROM A";
 const SORT_QUERY: &str = "SELECT * FROM A ORDER BY A.key";
 
 pub fn query_print(file: &str) -> CirupQuery {
-    CirupQuery::new(PRINT_QUERY, file, None, None)
+    query_print_with_backend(file, default_query_backend())
+}
+
+pub fn query_print_with_backend(file: &str, backend: QueryBackendKind) -> CirupQuery {
+    CirupQuery::new_with_backend(PRINT_QUERY, file, None, None, backend)
 }
 
 pub fn query_convert(file: &str) -> CirupQuery {
-    CirupQuery::new(CONVERT_QUERY, file, None, None)
+    query_convert_with_backend(file, default_query_backend())
+}
+
+pub fn query_convert_with_backend(file: &str, backend: QueryBackendKind) -> CirupQuery {
+    CirupQuery::new_with_backend(CONVERT_QUERY, file, None, None, backend)
 }
 
 pub fn query_sort(file: &str) -> CirupQuery {
-    CirupQuery::new(SORT_QUERY, file, None, None)
+    query_sort_with_backend(file, default_query_backend())
+}
+
+pub fn query_sort_with_backend(file: &str, backend: QueryBackendKind) -> CirupQuery {
+    CirupQuery::new_with_backend(SORT_QUERY, file, None, None, backend)
 }
 
 pub fn query_diff(file_one: &str, file_two: &str) -> CirupQuery {
-    CirupQuery::new(DIFF_QUERY, file_one, Some(file_two), None)
+    query_diff_with_backend(file_one, file_two, default_query_backend())
+}
+
+pub fn query_diff_with_backend(file_one: &str, file_two: &str, backend: QueryBackendKind) -> CirupQuery {
+    CirupQuery::new_with_backend(DIFF_QUERY, file_one, Some(file_two), None, backend)
+}
+
+pub fn query_diff_with_config(file_one: &str, file_two: &str, query_config: &QueryConfig) -> CirupQuery {
+    CirupQuery::new_with_query_config(DIFF_QUERY, file_one, Some(file_two), None, query_config)
 }
 
 pub fn query_diff_with_base(old: &str, new: &str, base: &str) -> CirupQuery {
-    CirupQuery::new(DIFF_WITH_BASE_QUERY, old, Some(new), Some(base))
+    query_diff_with_base_with_backend(old, new, base, default_query_backend())
+}
+
+pub fn query_diff_with_base_with_backend(old: &str, new: &str, base: &str, backend: QueryBackendKind) -> CirupQuery {
+    CirupQuery::new_with_backend(DIFF_WITH_BASE_QUERY, old, Some(new), Some(base), backend)
 }
 
 pub fn query_change(file_one: &str, file_two: &str) -> CirupQuery {
-    CirupQuery::new(CHANGE_QUERY, file_one, Some(file_two), None)
+    query_change_with_backend(file_one, file_two, default_query_backend())
+}
+
+pub fn query_change_with_backend(file_one: &str, file_two: &str, backend: QueryBackendKind) -> CirupQuery {
+    CirupQuery::new_with_backend(CHANGE_QUERY, file_one, Some(file_two), None, backend)
+}
+
+pub fn query_change_with_config(file_one: &str, file_two: &str, query_config: &QueryConfig) -> CirupQuery {
+    CirupQuery::new_with_query_config(CHANGE_QUERY, file_one, Some(file_two), None, query_config)
 }
 
 pub fn query_merge(file_one: &str, file_two: &str) -> CirupQuery {
-    CirupQuery::new(MERGE_QUERY, file_one, Some(file_two), None)
+    query_merge_with_backend(file_one, file_two, default_query_backend())
+}
+
+pub fn query_merge_with_backend(file_one: &str, file_two: &str, backend: QueryBackendKind) -> CirupQuery {
+    CirupQuery::new_with_backend(MERGE_QUERY, file_one, Some(file_two), None, backend)
+}
+
+pub fn query_merge_with_config(file_one: &str, file_two: &str, query_config: &QueryConfig) -> CirupQuery {
+    CirupQuery::new_with_query_config(MERGE_QUERY, file_one, Some(file_two), None, query_config)
 }
 
 pub fn query_intersect(file_one: &str, file_two: &str) -> CirupQuery {
-    CirupQuery::new(INTERSECT_QUERY, file_one, Some(file_two), None)
+    query_intersect_with_backend(file_one, file_two, default_query_backend())
+}
+
+pub fn query_intersect_with_backend(file_one: &str, file_two: &str, backend: QueryBackendKind) -> CirupQuery {
+    CirupQuery::new_with_backend(INTERSECT_QUERY, file_one, Some(file_two), None, backend)
 }
 
 pub fn query_subtract(file_one: &str, file_two: &str) -> CirupQuery {
-    CirupQuery::new(SUBTRACT_QUERY, file_one, Some(file_two), None)
+    query_subtract_with_backend(file_one, file_two, default_query_backend())
+}
+
+pub fn query_subtract_with_backend(file_one: &str, file_two: &str, backend: QueryBackendKind) -> CirupQuery {
+    CirupQuery::new_with_backend(SUBTRACT_QUERY, file_one, Some(file_two), None, backend)
 }
 
 impl CirupQuery {
     pub fn new(query: &str, file_one: &str, file_two: Option<&str>, file_three: Option<&str>) -> Self {
-        let engine = CirupEngine::new();
+        Self::new_with_query_config(query, file_one, file_two, file_three, &default_query_config())
+    }
+
+    pub fn new_with_backend(
+        query: &str,
+        file_one: &str,
+        file_two: Option<&str>,
+        file_three: Option<&str>,
+        backend: QueryBackendKind,
+    ) -> Self {
+        let mut query_config = default_query_config();
+        query_config.backend = backend;
+        Self::new_with_query_config(query, file_one, file_two, file_three, &query_config)
+    }
+
+    pub fn new_with_query_config(
+        query: &str,
+        file_one: &str,
+        file_two: Option<&str>,
+        file_three: Option<&str>,
+        query_config: &QueryConfig,
+    ) -> Self {
+        let mut engine = CirupEngine::with_query_config(query_config);
         engine.register_table_from_file("A", file_one);
 
         if let Some(file_two) = file_two {
@@ -310,7 +306,7 @@ use crate::file::load_resource_str;
 #[test]
 #[allow(clippy::self_named_module_files)]
 fn test_query() {
-    let engine = CirupEngine::new();
+    let mut engine = CirupEngine::new();
     engine.register_table_from_str("A", "test.json", include_str!("../test/test.json"));
     engine.register_table_from_str("B", "test.resx", include_str!("../test/test.resx"));
 
@@ -329,7 +325,7 @@ fn test_query() {
 
 #[test]
 fn test_query_subtract() {
-    let engine = CirupEngine::new();
+    let mut engine = CirupEngine::new();
 
     engine.register_table_from_str("A", "test1A.restext", include_str!("../test/subtract/test1A.restext"));
     engine.register_table_from_str("B", "test1B.restext", include_str!("../test/subtract/test1B.restext"));
@@ -345,7 +341,7 @@ fn test_query_subtract() {
 #[test]
 #[allow(clippy::self_named_module_files)]
 fn test_query_diff_with_base() {
-    let engine = CirupEngine::new();
+    let mut engine = CirupEngine::new();
     engine.register_table_from_str("A", "test_old.resx", include_str!("../test/test_old.resx"));
     engine.register_table_from_str("B", "test_new.resx", include_str!("../test/test_new.resx"));
     engine.register_table_from_str("C", "test.resx", include_str!("../test/test.resx"));
@@ -356,4 +352,44 @@ fn test_query_diff_with_base() {
     assert_eq!(triples[0].name, String::from("lblYolo"));
     assert_eq!(triples[0].base, String::from("You only live once"));
     assert_eq!(triples[0].value, String::from("Juste une vie a vivre"));
+}
+
+#[test]
+#[cfg(feature = "turso-rust")]
+fn test_query_turso_remote_env_gated() {
+    let remote_url = std::env::var("CIRUP_TURSO_URL")
+        .ok()
+        .or_else(|| std::env::var("LIBSQL_URL").ok())
+        .or_else(|| std::env::var("LIBSQL_HRANA_URL").ok());
+
+    let Some(remote_url) = remote_url else {
+        return;
+    };
+
+    let remote_auth_token = std::env::var("CIRUP_TURSO_AUTH_TOKEN")
+        .ok()
+        .or_else(|| std::env::var("LIBSQL_AUTH_TOKEN").ok())
+        .or_else(|| std::env::var("TURSO_AUTH_TOKEN").ok())
+        .unwrap_or_default();
+
+    let mut query_config = QueryConfig::default();
+    query_config.backend = QueryBackendKind::TursoRemote;
+    query_config.turso.url = Some(remote_url);
+    if !remote_auth_token.is_empty() {
+        query_config.turso.auth_token = Some(remote_auth_token);
+    }
+
+    let mut engine = CirupEngine::with_query_config(&query_config);
+    engine.register_table_from_str("A", "test.json", include_str!("../test/test.json"));
+
+    let mut actual = engine.query_resource("SELECT * FROM A ORDER BY A.key");
+    let mut expected = match load_resource_str(include_str!("../test/test.json"), "json") {
+        Ok(resources) => resources,
+        Err(e) => panic!("failed to parse expected json fixture: {}", e),
+    };
+
+    actual.sort_by(|a, b| a.name.cmp(&b.name).then(a.value.cmp(&b.value)));
+    expected.sort_by(|a, b| a.name.cmp(&b.name).then(a.value.cmp(&b.value)));
+
+    assert_eq!(actual, expected);
 }
