@@ -78,22 +78,12 @@ fn normalize_triples(triples: &mut [Triple]) {
 fn triples_to_tuples(triples: &[Triple]) -> Vec<(String, String, String)> {
     triples
         .iter()
-        .map(|triple| {
-            (
-                triple.name.clone(),
-                triple.value.clone(),
-                triple.base.clone(),
-            )
-        })
+        .map(|triple| (triple.name.clone(), triple.value.clone(), triple.base.clone()))
         .collect()
 }
 
 #[cfg(all(feature = "turso-rust", feature = "rusqlite-c"))]
-fn benchmark_resource_operation<F>(
-    label: &str,
-    ordered: bool,
-    mut operation: F,
-) -> (Duration, Duration, usize)
+fn benchmark_resource_operation<F>(label: &str, ordered: bool, mut operation: F) -> (Duration, Duration, usize)
 where
     F: FnMut(QueryBackendKind) -> Vec<Resource>,
 {
@@ -108,17 +98,11 @@ where
     let rows = rusqlite_result.len();
 
     if ordered {
-        assert_eq!(
-            rusqlite_result, turso_result,
-            "ordered result mismatch for {label}"
-        );
+        assert_eq!(rusqlite_result, turso_result, "ordered result mismatch for {label}");
     } else {
         normalize(&mut rusqlite_result);
         normalize(&mut turso_result);
-        assert_eq!(
-            rusqlite_result, turso_result,
-            "result mismatch for {label}"
-        );
+        assert_eq!(rusqlite_result, turso_result, "result mismatch for {label}");
     }
 
     (rusqlite_elapsed, turso_elapsed, rows)
@@ -145,10 +129,7 @@ where
     let rusqlite_tuples = triples_to_tuples(&rusqlite_result);
     let turso_tuples = triples_to_tuples(&turso_result);
 
-    assert_eq!(
-        rusqlite_tuples, turso_tuples,
-        "triple result mismatch for {label}"
-    );
+    assert_eq!(rusqlite_tuples, turso_tuples, "triple result mismatch for {label}");
 
     (rusqlite_elapsed, turso_elapsed, rows)
 }
@@ -250,8 +231,7 @@ fn benchmark_correctness_rusqlite_vs_turso_local() {
         macro_rules! bench_resource_op {
             ($key:expr, $label:expr, $ordered:expr, $run:expr) => {{
                 covered_operations.insert($key);
-                let (rusqlite_elapsed, turso_elapsed, rows) =
-                    benchmark_resource_operation($label, $ordered, $run);
+                let (rusqlite_elapsed, turso_elapsed, rows) = benchmark_resource_operation($label, $ordered, $run);
                 total_rusqlite += rusqlite_elapsed;
                 total_turso += turso_elapsed;
                 println!(
@@ -348,14 +328,7 @@ fn benchmark_correctness_rusqlite_vs_turso_local() {
             &format!("{} / pull-query-left-join(en,fr)", triplet.name),
             false,
             |backend| {
-                query::CirupQuery::new_with_backend(
-                    pull_left_join_query,
-                    &en,
-                    Some(&fr),
-                    None,
-                    backend,
-                )
-                .run()
+                query::CirupQuery::new_with_backend(pull_left_join_query, &en, Some(&fr), None, backend).run()
             }
         );
 
@@ -364,14 +337,7 @@ fn benchmark_correctness_rusqlite_vs_turso_local() {
             &format!("{} / push-query-changed-values(en,fr)", triplet.name),
             false,
             |backend| {
-                query::CirupQuery::new_with_backend(
-                    push_changed_values_query,
-                    &en,
-                    Some(&fr),
-                    None,
-                    backend,
-                )
-                .run()
+                query::CirupQuery::new_with_backend(push_changed_values_query, &en, Some(&fr), None, backend).run()
             }
         );
     }
@@ -388,7 +354,5 @@ fn benchmark_correctness_rusqlite_vs_turso_local() {
         total_rusqlite, total_turso, ratio
     );
 
-    println!(
-        "analyzed non-query CLI operations (not query-backend comparable): vcs-log, vcs-diff"
-    );
+    println!("analyzed non-query CLI operations (not query-backend comparable): vcs-log, vcs-diff");
 }

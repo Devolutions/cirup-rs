@@ -5,9 +5,7 @@ use std::path::PathBuf;
 
 fn normalize_windows_version(version: &str) -> (String, String) {
     let semver_no_pre = version.split_once('-').map_or(version, |(core, _)| core);
-    let semver = semver_no_pre
-        .split_once('+')
-        .map_or(semver_no_pre, |(core, _)| core);
+    let semver = semver_no_pre.split_once('+').map_or(semver_no_pre, |(core, _)| core);
 
     let mut parts = semver
         .split('.')
@@ -20,16 +18,8 @@ fn normalize_windows_version(version: &str) -> (String, String) {
 
     parts.truncate(4);
 
-    let dots = parts
-        .iter()
-        .map(u16::to_string)
-        .collect::<Vec<_>>()
-        .join(".");
-    let commas = parts
-        .iter()
-        .map(u16::to_string)
-        .collect::<Vec<_>>()
-        .join(",");
+    let dots = parts.iter().map(u16::to_string).collect::<Vec<_>>().join(".");
+    let commas = parts.iter().map(u16::to_string).collect::<Vec<_>>().join(",");
 
     (dots, commas)
 }
