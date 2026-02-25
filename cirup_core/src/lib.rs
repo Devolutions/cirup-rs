@@ -1,10 +1,8 @@
+extern crate chrono;
 extern crate regex;
 extern crate treexml;
 extern crate uuid;
-extern crate chrono;
 
-#[macro_use]
-extern crate serde_derive;
 extern crate dot_json;
 extern crate rusqlite;
 extern crate serde;
@@ -22,14 +20,12 @@ extern crate prettytable;
 extern crate lazy_static;
 
 mod resource;
-use resource::Resource;
+pub use crate::resource::Resource;
 
 mod triple;
-use triple::Triple;
-
+pub use crate::triple::Triple;
 
 pub mod config;
-mod error;
 mod shell;
 
 mod json;

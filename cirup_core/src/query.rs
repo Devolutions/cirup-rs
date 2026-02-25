@@ -1,45 +1,45 @@
+#![allow(clippy::self_named_module_files)]
+
 use prettytable::{Cell, Row, Table};
 
-use rusqlite::types::*;
 use rusqlite::Rows;
+use rusqlite::types::*;
 use rusqlite::{Connection, Error, Statement};
 
-use file::{save_resource_file, vfile_set};
-use vtab::{create_db, init_db, register_table};
+use crate::file::{save_resource_file, vfile_set};
+use crate::vtab::{create_db, init_db, register_table};
 
-use {Resource, Triple};
+use crate::{Resource, Triple};
 
-pub fn print_pretty(columns: Vec<String>, values: &mut Rows) {
+#[allow(clippy::print_stdout)]
+pub fn print_pretty(columns: Vec<String>, values: &mut Rows<'_>) {
     let mut row = Row::empty();
     let mut table: Table = Table::new();
     //write header first
     table.set_titles(columns.iter().collect());
-    loop {
-        if let Some(v) = values.next() {
-            if let Some(res) = v.ok() {
-                for i in 0..res.column_count() {
-                    let val = Value::data_type(&res.get(i));
-                    match val {
-                        Type::Real | Type::Integer => {
-                            row.add_cell(Cell::new(&res.get::<usize, i64>(i).to_string()));
-                        }
-                        Type::Text => row.add_cell(Cell::new(&res.get::<usize, String>(i))),
-                        _ => {
-                            // Do nothing.
-                        }
+    while let Some(v) = values.next() {
+        if let Ok(res) = v {
+            for i in 0..res.column_count() {
+                let val = Value::data_type(&res.get(i));
+                match val {
+                    Type::Real | Type::Integer => {
+                        row.add_cell(Cell::new(&res.get::<usize, i64>(i).to_string()));
+                    }
+                    Type::Text => row.add_cell(Cell::new(&res.get::<usize, String>(i))),
+                    _ => {
+                        // Do nothing.
                     }
                 }
-                table.add_row(row);
-                row = Row::empty();
             }
-        } else {
-            break;
+            table.add_row(row);
+            row = Row::empty();
         }
     }
     println!("{}", table);
 }
 
-pub fn print_resources_pretty(resources: &Vec<Resource>) {
+#[allow(clippy::print_stdout)]
+pub fn print_resources_pretty(resources: &[Resource]) {
     let mut table: Table = Table::new();
 
     table.add_row(row!["name", "value"]); // table header
@@ -54,16 +54,17 @@ pub fn print_resources_pretty(resources: &Vec<Resource>) {
     println!("{}", table);
 }
 
-pub fn print_triples_pretty(triples: &Vec<Triple>) {
-    for triple in triples.iter() {
+#[allow(clippy::print_stdout)]
+pub fn print_triples_pretty(triples: &[Triple]) {
+    for triple in triples {
         println!("name: {}", triple.name);
         println!("base: {}", triple.base);
         println!("value: {}", triple.value);
-        println!("");
-    };
+        println!();
+    }
 }
 
-fn get_statement_column_names(statement: &Statement) -> Vec<String> {
+fn get_statement_column_names(statement: &Statement<'_>) -> Vec<String> {
     let mut column_names = Vec::new();
     for column_name in statement.column_names().iter() {
         column_names.push(column_name.to_string());
@@ -72,22 +73,14 @@ fn get_statement_column_names(statement: &Statement) -> Vec<String> {
 }
 
 pub fn execute_query(db: &Connection, query: &str) {
-    let stmt = db.prepare(&query);
-
-    let mut table_result: Vec<Vec<Value>> = Vec::new();
-    let mut row: Vec<Value> = Vec::new();
+    let stmt = db.prepare(query);
 
     match stmt {
         Ok(mut statement) => {
-            let mut column_names = get_statement_column_names(&statement);
-
-            for column_name in statement.column_names().iter() {
-                let v: Value = Value::Text(column_name.to_string());
-                row.push(v);
+            let column_names = get_statement_column_names(&statement);
+            if let Ok(mut response) = statement.query(&[]) {
+                print_pretty(column_names, &mut response);
             }
-            table_result.push(row);
-            let mut response = statement.query(&[]).unwrap();
-            print_pretty(column_names, &mut response);
         }
         Err(e) => match e {
             Error::SqliteFailure(_r, m) => {
@@ -102,19 +95,21 @@ pub fn execute_query(db: &Connection, query: &str) {
 
 pub fn execute_query_resource(db: &Connection, query: &str) -> Vec<Resource> {
     let mut resources: Vec<Resource> = Vec::new();
-    let mut statement = db.prepare(&query).unwrap();
-    let mut response = statement.query(&[]).unwrap();
+    let mut statement = match db.prepare(query) {
+        Ok(statement) => statement,
+        Err(_) => return resources,
+    };
+    let mut response = match statement.query(&[]) {
+        Ok(response) => response,
+        Err(_) => return resources,
+    };
 
-    loop {
-        if let Some(v) = response.next() {
-            if let Some(res) = v.ok() {
-                let name = &res.get::<usize, String>(0);
-                let value = &res.get::<usize, String>(1);
-                let resource = Resource::new(name, value);
-                resources.push(resource);
-            }
-        } else {
-            break;
+    while let Some(v) = response.next() {
+        if let Ok(res) = v {
+            let name = &res.get::<usize, String>(0);
+            let value = &res.get::<usize, String>(1);
+            let resource = Resource::new(name, value);
+            resources.push(resource);
         }
     }
 
@@ -123,20 +118,22 @@ pub fn execute_query_resource(db: &Connection, query: &str) -> Vec<Resource> {
 
 pub fn execute_query_triple(db: &Connection, query: &str) -> Vec<Triple> {
     let mut resources: Vec<Triple> = Vec::new();
-    let mut statement = db.prepare(&query).unwrap();
-    let mut response = statement.query(&[]).unwrap();
+    let mut statement = match db.prepare(query) {
+        Ok(statement) => statement,
+        Err(_) => return resources,
+    };
+    let mut response = match statement.query(&[]) {
+        Ok(response) => response,
+        Err(_) => return resources,
+    };
 
-    loop {
-        if let Some(v) = response.next() {
-            if let Some(res) = v.ok() {
-                let name = &res.get::<usize, String>(0);
-                let value = &res.get::<usize, String>(1);
-                let base = &res.get::<usize, String>(2);
-                let resource = Triple::new(name, value, base);
-                resources.push(resource);
-            }
-        } else {
-            break;
+    while let Some(v) = response.next() {
+        if let Ok(res) = v {
+            let name = &res.get::<usize, String>(0);
+            let value = &res.get::<usize, String>(1);
+            let base = &res.get::<usize, String>(2);
+            let resource = Triple::new(name, value, base);
+            resources.push(resource);
         }
     }
 
@@ -177,6 +174,12 @@ impl CirupEngine {
 
     pub fn query(&self, query: &str) {
         execute_query(&self.db, query);
+    }
+}
+
+impl Default for CirupEngine {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -263,33 +266,33 @@ impl CirupQuery {
         let engine = CirupEngine::new();
         engine.register_table_from_file("A", file_one);
 
-        if file_two.is_some() {
-            engine.register_table_from_file("B", file_two.unwrap());
+        if let Some(file_two) = file_two {
+            engine.register_table_from_file("B", file_two);
         }
 
-        if file_two.is_some() {
-            engine.register_table_from_file("C", file_three.unwrap());
+        if let Some(file_three) = file_three {
+            engine.register_table_from_file("C", file_three);
         }
 
         CirupQuery {
-            engine: engine,
-            query: query.to_string(),
+            engine,
+            query: query.to_owned(),
         }
     }
 
     pub fn run(&self) -> Vec<Resource> {
-        return self.engine.query_resource(&self.query);
+        self.engine.query_resource(&self.query)
     }
 
     pub fn run_triple(&self) -> Vec<Triple> {
-        return self.engine.query_triple(&self.query);
+        self.engine.query_triple(&self.query)
     }
 
     pub fn run_interactive(&self, out_file: Option<&str>) {
         let resources = self.run();
 
-        if out_file.is_some() {
-            save_resource_file(out_file.unwrap(), &resources);
+        if let Some(out_file) = out_file {
+            save_resource_file(out_file, &resources);
         } else {
             print_resources_pretty(&resources);
         }
@@ -302,9 +305,10 @@ impl CirupQuery {
 }
 
 #[cfg(test)]
-use file::load_resource_str;
+use crate::file::load_resource_str;
 
 #[test]
+#[allow(clippy::self_named_module_files)]
 fn test_query() {
     let engine = CirupEngine::new();
     engine.register_table_from_str("A", "test.json", include_str!("../test/test.json"));
@@ -327,24 +331,19 @@ fn test_query() {
 fn test_query_subtract() {
     let engine = CirupEngine::new();
 
-    engine.register_table_from_str(
-        "A",
-        "test1A.restext",
-        include_str!("../test/subtract/test1A.restext"),
-    );
-    engine.register_table_from_str(
-        "B",
-        "test1B.restext",
-        include_str!("../test/subtract/test1B.restext"),
-    );
-    let expected =
-        load_resource_str(include_str!("../test/subtract/test1C.restext"), "restext").unwrap();
+    engine.register_table_from_str("A", "test1A.restext", include_str!("../test/subtract/test1A.restext"));
+    engine.register_table_from_str("B", "test1B.restext", include_str!("../test/subtract/test1B.restext"));
+    let expected = match load_resource_str(include_str!("../test/subtract/test1C.restext"), "restext") {
+        Ok(resources) => resources,
+        Err(e) => panic!("failed to parse expected restext fixture: {}", e),
+    };
 
     let actual = engine.query_resource("SELECT * FROM A WHERE A.key NOT IN (SELECT B.key FROM B)");
     assert_eq!(actual, expected);
 }
 
 #[test]
+#[allow(clippy::self_named_module_files)]
 fn test_query_diff_with_base() {
     let engine = CirupEngine::new();
     engine.register_table_from_str("A", "test_old.resx", include_str!("../test/test_old.resx"));

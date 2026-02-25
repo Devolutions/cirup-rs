@@ -1,19 +1,141 @@
-#[macro_use]
-extern crate clap;
-extern crate cirup_core;
-#[macro_use]
-extern crate log;
-extern crate env_logger;
-
 use std::error::Error;
 use std::path::Path;
 
-use clap::App;
+use clap::{ArgAction, Parser, Subcommand};
 use env_logger::{Builder, Env};
+use log::error;
 
 use cirup_core::config::Config;
 use cirup_core::query;
 use cirup_core::sync::Sync;
+
+#[derive(Debug, Parser)]
+#[command(name = "cirup", author, version, about = "a translation continuous integration tool")]
+struct Cli {
+    #[arg(short = 'v', long = "verbose", global = true, action = ArgAction::Count, help = "Sets the level of verbosity")]
+    verbose: u8,
+
+    #[arg(
+        short = 'c',
+        long = "config",
+        global = true,
+        help = "Sets the configuration file to use"
+    )]
+    config: Option<String>,
+
+    #[arg(
+        short = 'o',
+        long = "old-commit",
+        global = true,
+        help = "a git hash specifying the old commit"
+    )]
+    old_commit: Option<String>,
+
+    #[arg(
+        short = 'n',
+        long = "new-commit",
+        global = true,
+        requires = "old_commit",
+        help = "a git hash specifying the new commit"
+    )]
+    new_commit: Option<String>,
+
+    #[arg(short = 'C', long = "show-changes", global = true, action = ArgAction::SetTrue, help = "additionally print keys that have values in [file2] but that do not match the values in [file1]")]
+    show_changes: bool,
+
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Debug, Subcommand)]
+enum Commands {
+    #[command(about = "generate translations for all languages into working_dir. [config] is required.")]
+    Pull,
+
+    #[command(about = "merge translations from working_dir back into source control. [config] is required.")]
+    Push,
+
+    #[command(
+        name = "vcs-log",
+        about = "show the version control history of the source language, newest first. [config] is required."
+    )]
+    VcsLog {
+        #[arg(
+            short = 'l',
+            long = "limit",
+            default_value_t = 0,
+            help = "limit the number of results returned"
+        )]
+        limit: u32,
+
+        #[arg(long = "format", help = "optional log output format")]
+        format: Option<String>,
+    },
+
+    #[command(
+        name = "vcs-diff",
+        about = "diff two commits of the source language. [config] is required. [old-commit] is required."
+    )]
+    VcsDiff,
+
+    #[command(name = "file-print", about = "read [file] and output its contents")]
+    FilePrint { file: String, output: Option<String> },
+
+    #[command(
+        name = "file-convert",
+        about = "convert [file] to another type. possible extensions are .json, .resx and .restext"
+    )]
+    FileConvert { file: String, output: String },
+
+    #[command(
+        name = "file-sort",
+        about = "sort [file] by key name. possible extensions are .json, .resx and .restext"
+    )]
+    FileSort { file: String, output: Option<String> },
+
+    #[command(
+        name = "file-diff",
+        about = "output keys that have values in [file1] but not in [file2]. useful for finding missing translations."
+    )]
+    FileDiff {
+        file1: String,
+        file2: String,
+        output: Option<String>,
+    },
+
+    #[command(name = "file-merge", about = "merges the values from [file2] into [file1]")]
+    FileMerge {
+        file1: String,
+        file2: String,
+        output: Option<String>,
+    },
+
+    #[command(
+        name = "file-intersect",
+        about = "output the intersection of values from [file1] and [file2]"
+    )]
+    FileIntersect {
+        file1: String,
+        file2: String,
+        output: Option<String>,
+    },
+
+    #[command(
+        name = "file-subtract",
+        about = "outputs values from [file1] that do not exist in [file2]"
+    )]
+    FileSubtract {
+        file1: String,
+        file2: String,
+        output: Option<String>,
+    },
+
+    #[command(
+        name = "diff-with-base",
+        about = "output keys that have values in [new] but not in [old] with the value in [base]"
+    )]
+    DiffWithBase { old: String, new: String, base: String },
+}
 
 fn print(input: &str, out_file: Option<&str>) {
     let query = query::query_print(input);
@@ -65,140 +187,107 @@ fn diff_with_base(old: &str, new: &str, base: &str) {
     query.run_triple_interactive();
 }
 
-fn run(matches: &clap::ArgMatches, config: Option<Config>) -> Result<(), Box<dyn Error>> {
-    match matches.subcommand() {
-        ("file-print", Some(args)) => {
-            print(args.value_of("file").unwrap(), args.value_of("output"));
+fn run(cli: &Cli, config: Option<Config>) -> Result<(), Box<dyn Error>> {
+    match &cli.command {
+        Commands::FilePrint { file, output } => {
+            print(file, output.as_deref());
             Ok(())
         }
-        ("file-diff", Some(args)) => {
-            if args.is_present("show_changes") {
-                change(
-                    args.value_of("file1").unwrap(),
-                    args.value_of("file2").unwrap(),
-                    args.value_of("output"),
-                );
+        Commands::FileDiff { file1, file2, output } => {
+            if cli.show_changes {
+                change(file1, file2, output.as_deref());
             } else {
-                diff(
-                    args.value_of("file1").unwrap(),
-                    args.value_of("file2").unwrap(),
-                    args.value_of("output"),
-                );
+                diff(file1, file2, output.as_deref());
             }
             Ok(())
         }
-        ("file-merge", Some(args)) => {
-            merge(
-                args.value_of("file1").unwrap(),
-                args.value_of("file2").unwrap(),
-                args.value_of("output"),
-            );
+        Commands::FileMerge { file1, file2, output } => {
+            merge(file1, file2, output.as_deref());
             Ok(())
         }
-        ("file-intersect", Some(args)) => {
-            intersect(
-                args.value_of("file1").unwrap(),
-                args.value_of("file2").unwrap(),
-                args.value_of("output"),
-            );
+        Commands::FileIntersect { file1, file2, output } => {
+            intersect(file1, file2, output.as_deref());
             Ok(())
         }
-        ("file-subtract", Some(args)) => {
-            subtract(
-                args.value_of("file1").unwrap(),
-                args.value_of("file2").unwrap(),
-                args.value_of("output"),
-            );
+        Commands::FileSubtract { file1, file2, output } => {
+            subtract(file1, file2, output.as_deref());
             Ok(())
         }
-        ("file-convert", Some(args)) => {
-            convert(
-                args.value_of("file").unwrap(),
-                args.value_of("output").unwrap(),
-            );
+        Commands::FileConvert { file, output } => {
+            convert(file, output);
             Ok(())
         }
-        ("file-sort", Some(args)) => {
-            sort(
-                args.value_of("file").unwrap(),
-                args.value_of("output"),
-            );
+        Commands::FileSort { file, output } => {
+            sort(file, output.as_deref());
             Ok(())
         }
-        ("vcs-log", Some(args)) => match config {
+        Commands::VcsLog { limit, format } => match config {
             Some(c) => {
                 let sync = Sync::new(&c)?;
 
                 sync.vcs.log(
                     &sync.source_language_path().to_string_lossy(),
-                    args.value_of("format"),
-                    args.value_of("old_commit"),
-                    args.value_of("new_commit"),
+                    format.as_deref(),
+                    cli.old_commit.as_deref(),
+                    cli.new_commit.as_deref(),
                     true,
-                    value_t!(args, "limit", u32).unwrap_or(0),
+                    *limit,
                 )?;
 
                 Ok(())
             }
             None => Err("configuration file required")?,
         },
-        ("vcs-diff", Some(args)) => match config {
+        Commands::VcsDiff => match config {
             Some(c) => {
                 let sync = Sync::new(&c)?;
+                let old_commit = match cli.old_commit.as_deref() {
+                    Some(value) => value,
+                    None => Err("old commit required")?,
+                };
 
                 sync.vcs.diff(
                     &sync.source_language_path().to_string_lossy(),
-                    args.value_of("old_commit").unwrap(),
-                    args.value_of("new_commit"),
+                    old_commit,
+                    cli.new_commit.as_deref(),
                 )?;
 
                 Ok(())
             }
             None => Err("configuration file required")?,
         },
-        ("pull", Some(args)) => match config {
+        Commands::Pull => match config {
             Some(c) => {
                 let sync = Sync::new(&c)?;
-                sync.pull(
-                    args.value_of("old_commit"),
-                    args.value_of("new_commit"),
-                    args.is_present("show_changes"),
-                )?;
+                sync.pull(cli.old_commit.as_deref(), cli.new_commit.as_deref(), cli.show_changes)?;
 
                 Ok(())
             }
             None => Err("configuration file required")?,
         },
-        ("push", Some(args)) => match config {
+        Commands::Push => match config {
             Some(c) => {
                 let sync = Sync::new(&c)?;
-                sync.push(args.value_of("old_commit"), args.value_of("new_commit"))?;
+                sync.push(cli.old_commit.as_deref(), cli.new_commit.as_deref())?;
 
                 Ok(())
             }
             None => Err("configuration file required")?,
         },
-        ("diff-with-base", Some(args)) => {
-            diff_with_base(
-                args.value_of("old").unwrap(),
-                args.value_of("new").unwrap(),
-                args.value_of("base").unwrap(),
-            );
+        Commands::DiffWithBase { old, new, base } => {
+            diff_with_base(old, new, base);
             Ok(())
-        }        
-        _ => Err("unrecognised subcommand")?,
+        }
     }
 }
 
 fn main() {
-    let yaml = load_yaml!("cli.yml");
-    let app = App::from_yaml(yaml);
-    let matches = app.version(crate_version!()).get_matches();
+    let cli = Cli::parse();
 
-    let min_log_level = match matches.occurrences_of("verbose") {
+    let min_log_level = match cli.verbose {
         0 => "info",
         1 => "debug",
-        2 | _ => "trace",
+        _ => "trace",
     };
 
     let mut builder = Builder::from_env(Env::default().default_filter_or(min_log_level));
@@ -206,15 +295,49 @@ fn main() {
 
     let mut config: Option<Config> = None;
 
-    if let Some(config_file) = matches.value_of("config") {
+    if let Some(config_file) = cli.config.as_deref() {
         match Config::new(Path::new(config_file)) {
             Ok(c) => config = Some(c),
             Err(e) => error!("unable to read the config file ({})", e),
         }
     }
 
-    match run(&matches, config) {
-        Ok(()) => return,
+    match run(&cli, config) {
+        Ok(()) => (),
         Err(e) => error!("an unexpected error occured ({})", e),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_file_diff_with_show_changes() {
+        let cli = Cli::parse_from(["cirup", "--show-changes", "file-diff", "a.json", "b.json", "out.json"]);
+
+        assert!(cli.show_changes);
+        match cli.command {
+            Commands::FileDiff { file1, file2, output } => {
+                assert_eq!(file1, "a.json");
+                assert_eq!(file2, "b.json");
+                assert_eq!(output.as_deref(), Some("out.json"));
+            }
+            _ => panic!("expected file-diff command"),
+        }
+    }
+
+    #[test]
+    fn parse_vcs_log_limit() {
+        let cli = Cli::parse_from(["cirup", "--old-commit", "abc", "vcs-log", "--limit", "12"]);
+
+        assert_eq!(cli.old_commit.as_deref(), Some("abc"));
+        match cli.command {
+            Commands::VcsLog { limit, format } => {
+                assert_eq!(limit, 12);
+                assert!(format.is_none());
+            }
+            _ => panic!("expected vcs-log command"),
+        }
     }
 }

@@ -8,12 +8,12 @@ use std::path::PathBuf;
 use regex::Regex;
 use tempfile;
 
-use config::Config;
-use query;
-use revision::RevisionRange;
-use utils::*;
-use vcs;
-use vcs::Vcs;
+use crate::config::Config;
+use crate::query;
+use crate::revision::RevisionRange;
+use crate::utils::*;
+use crate::vcs;
+use crate::vcs::Vcs;
 
 pub struct Sync {
     pub vcs: Box<dyn Vcs>,
@@ -26,6 +26,7 @@ pub struct Sync {
     temp_dir: tempfile::TempDir,
 }
 
+#[derive(Default)]
 struct LanguageFile {
     name: String,
     path: PathBuf,
@@ -34,33 +35,20 @@ struct LanguageFile {
     revision: RevisionRange,
 }
 
-impl Default for LanguageFile {
-    fn default() -> LanguageFile {
-        LanguageFile {
-            name: String::new(),
-            path: PathBuf::default(),
-            file_name: String::new(),
-            _file_ext: String::new(),
-            revision: RevisionRange::default(),
-        }
-    }
-}
-
 impl LanguageFile {
-    fn load<T: AsRef<Path>>(path: T, match_regex: &Regex, lang_regex: &Regex,) -> Result<LanguageFile, Box<dyn Error>> {
+    fn load<T: AsRef<Path>>(path: T, match_regex: &Regex, lang_regex: &Regex) -> Result<LanguageFile, Box<dyn Error>> {
         let path_ref = PathBuf::from(path.as_ref());
         if !path_ref.is_file() {
             Err("invalid language file")?;
         };
 
         let file_ext = match path_ref.extension().and_then(OsStr::to_str) {
-            Some(extension) => extension.to_string(),
+            Some(extension) => extension.to_owned(),
             _ => Err(format!("invalid language file {:?}", path_ref))?,
         };
-        let (language_revision, path) =
-            RevisionRange::extract_from_file_name(PathBuf::from(path.as_ref()));
+        let (language_revision, path) = RevisionRange::extract_from_file_name(PathBuf::from(path.as_ref()));
         let file_name = match path.file_name().and_then(OsStr::to_str) {
-            Some(file_name) => file_name.to_string(),
+            Some(file_name) => file_name.to_owned(),
             _ => Err(format!("invalid language file {:?}", path_ref))?,
         };
 
@@ -69,16 +57,14 @@ impl LanguageFile {
         }
 
         match lang_regex.captures(&file_name) {
-            Some(captures) => {
-                Ok(LanguageFile {
-                    name: captures[1].to_string(),
-                    path: path_ref,
-                    file_name: file_name.to_string(),
-                    _file_ext: file_ext,
-                    revision: language_revision,
-                })
-            },
-            None => Err("invalid language file")?
+            Some(captures) => Ok(LanguageFile {
+                name: captures[1].to_string(),
+                path: path_ref,
+                file_name: file_name.clone(),
+                _file_ext: file_ext,
+                revision: language_revision,
+            }),
+            None => Err("invalid language file")?,
         }
     }
 }
@@ -90,9 +76,9 @@ fn find_languages(
 ) -> Result<Vec<LanguageFile>, Box<dyn Error>> {
     let mut languages: Vec<LanguageFile> = Vec::new();
 
-    for entry in fs::read_dir(&source_dir)? {
-        if let Ok(language_file) = LanguageFile::load(entry.unwrap().path(), match_regex, lang_regex) {
-                languages.push(language_file);
+    for entry in fs::read_dir(source_dir)? {
+        if let Ok(language_file) = LanguageFile::load(entry?.path(), match_regex, lang_regex) {
+            languages.push(language_file);
         }
     }
 
@@ -104,7 +90,7 @@ impl Sync {
         let vcs = vcs::new(config)?;
         vcs.pull()?;
 
-        let source_dir = Path::new(&config.vcs.local_path).join(config.sync.source_dir.to_string());
+        let source_dir = Path::new(&config.vcs.local_path).join(config.sync.source_dir.clone());
 
         if !source_dir.is_dir() {
             Err(format!(
@@ -125,31 +111,28 @@ impl Sync {
         let mut languages = find_languages(&source_dir, &match_rex, &lang_rex)?;
 
         if languages.is_empty() {
-            Err(format!(
-                "couldn't find any language files in {:?}",
-                &source_dir
-            ))?;
+            Err(format!("couldn't find any language files in {:?}", &source_dir))?;
         }
 
         languages.retain(|value| {
             value.name == config.sync.source_language || config.sync.target_languages.contains(&value.name)
         });
 
-        if !languages.iter().find(| &language_file| language_file.name == config.sync.source_language).is_some() {
-            Err(format!(
-                "couldn't find source language file in {:?}",
-                &source_dir
-            ))?;
+        if !languages
+            .iter()
+            .any(|language_file| language_file.name == config.sync.source_language)
+        {
+            Err(format!("couldn't find source language file in {:?}", &source_dir))?;
         }
 
         let sync = Sync {
-            vcs: vcs,
-            languages: languages,
-            source_language: config.sync.source_language.to_string(),
-            source_path: config.sync.source_dir.to_string(),
-            working_dir: config.sync.working_dir.to_string(),
-            match_rex: match_rex,
-            lang_rex: lang_rex,
+            vcs,
+            languages,
+            source_language: config.sync.source_language.clone(),
+            source_path: config.sync.source_dir.clone(),
+            working_dir: config.sync.working_dir.clone(),
+            match_rex,
+            lang_rex,
             temp_dir: tempfile::tempdir()?,
         };
 
@@ -161,27 +144,27 @@ impl Sync {
     }
 
     fn source_language(&self) -> Option<&LanguageFile> {
-        self.languages.iter().find(| &language_file| language_file.name == self.source_language)
+        self.languages
+            .iter()
+            .find(|&language_file| language_file.name == self.source_language)
     }
 
     pub fn source_language_path(&self) -> PathBuf {
         if let Some(language) = self.source_language() {
-            return language.path.to_owned();
+            return language.path.clone();
         }
 
         PathBuf::default()
     }
 
-    fn create_source_language_file(
-        &self,
-        rev: &RevisionRange,
-        show_changes: bool,
-    ) -> Result<PathBuf, Box<dyn Error>> {
+    fn create_source_language_file(&self, rev: &RevisionRange, show_changes: bool) -> Result<PathBuf, Box<dyn Error>> {
         debug!("preparing source file for revision(s) {}", rev);
-        let source = self.source_language().unwrap();
+        let source = match self.source_language() {
+            Some(source) => source,
+            None => Err("source language file not found")?,
+        };
         let source_path_vcs = self.vcs_relative_path(&source.file_name);
-        let source_path_out =
-            rev.append_to_file_name(Path::new(&self.working_dir).join(&source.file_name))?;
+        let source_path_out = rev.append_to_file_name(Path::new(&self.working_dir).join(&source.file_name))?;
 
         let old_commit = rev.old_rev_as_ref();
         let new_commit = rev.new_rev_as_ref();
@@ -194,8 +177,7 @@ impl Sync {
             )?;
         } else {
             let rev_old = RevisionRange::new(old_commit, None);
-            let old_path = rev_old
-                .append_to_file_name(Path::new(self.temp_dir.path()).join(&source.file_name))?;
+            let old_path = rev_old.append_to_file_name(Path::new(self.temp_dir.path()).join(&source.file_name))?;
             self.vcs.show(
                 &source_path_vcs.to_string_lossy(),
                 old_commit,
@@ -203,8 +185,7 @@ impl Sync {
             )?;
 
             let rev_new = RevisionRange::new(None, new_commit);
-            let new_path = rev_new
-                .append_to_file_name(Path::new(self.temp_dir.path()).join(&source.file_name))?;
+            let new_path = rev_new.append_to_file_name(Path::new(self.temp_dir.path()).join(&source.file_name))?;
             self.vcs.show(
                 &source_path_vcs.to_string_lossy(),
                 new_commit,
@@ -217,14 +198,11 @@ impl Sync {
                 new_path.display()
             );
 
-            let query: query::CirupQuery;
-
-            if show_changes {
-                query =
-                    query::query_change(&new_path.to_string_lossy(), &old_path.to_string_lossy());
+            let query: query::CirupQuery = if show_changes {
+                query::query_change(&new_path.to_string_lossy(), &old_path.to_string_lossy())
             } else {
-                query = query::query_diff(&new_path.to_string_lossy(), &old_path.to_string_lossy());
-            }
+                query::query_diff(&new_path.to_string_lossy(), &old_path.to_string_lossy())
+            };
 
             query.run_interactive(Some(&source_path_out.to_string_lossy()));
         }
@@ -234,12 +212,8 @@ impl Sync {
         Ok(source_path_out)
     }
 
-    pub fn push(
-        &self,
-        old_commit: Option<&str>,
-        new_commit: Option<&str>,
-    ) -> Result<(), Box<dyn Error>> {
-        let current_rev = sanitized(&self.vcs.current_revision()?).to_string();
+    pub fn push(&self, old_commit: Option<&str>, new_commit: Option<&str>) -> Result<(), Box<dyn Error>> {
+        let current_rev = sanitized(&self.vcs.current_revision()?);
         let rev = RevisionRange::new(
             old_commit,
             match new_commit {
@@ -276,11 +250,10 @@ impl Sync {
                     query_string,
                     &source_path_out.to_string_lossy(),
                     Some(&translation_file.path.to_string_lossy()),
-                    None
+                    None,
                 );
-                let file_path = rev.append_to_file_name(
-                    Path::new(self.temp_dir.path()).join(&translation_file.file_name),
-                )?;
+                let file_path =
+                    rev.append_to_file_name(Path::new(self.temp_dir.path()).join(&translation_file.file_name))?;
 
                 debug!(
                     "generating intermediate file from {} and {}",
@@ -289,17 +262,19 @@ impl Sync {
                 );
                 query.run_interactive(Some(&file_path.to_string_lossy()));
 
-                match self.languages.iter().find(| &language_file| language_file.name == translation_file.name) {
+                match self
+                    .languages
+                    .iter()
+                    .find(|&language_file| language_file.name == translation_file.name)
+                {
                     Some(vcs_language_file) => {
                         debug!(
                             "merging {} into {}",
                             translation_file.path.display(),
                             vcs_language_file.path.display()
                         );
-                        let query = query::query_merge(
-                            &vcs_language_file.path.to_string_lossy(),
-                            &file_path.to_string_lossy(),
-                        );
+                        let query =
+                            query::query_merge(&vcs_language_file.path.to_string_lossy(), &file_path.to_string_lossy());
                         query.run_interactive(Some(&vcs_language_file.path.to_string_lossy()));
                         info!(
                             "merged translation for {} from {} into {}",
@@ -352,38 +327,32 @@ impl Sync {
             debug!("generating translation for {}", language_file.name);
 
             let target_path_vcs = self.vcs_relative_path(&language_file.file_name);
-            let target_path_out = rev
-                .append_to_file_name(Path::new(&self.working_dir).join(&language_file.file_name))?;
+            let target_path_out =
+                rev.append_to_file_name(Path::new(&self.working_dir).join(&language_file.file_name))?;
 
-            let file_path = RevisionRange::new(None, rev.new_rev_as_ref()).append_to_file_name(
-                Path::new(self.temp_dir.path()).join(&language_file.file_name),
-            )?;
+            let file_path = RevisionRange::new(None, rev.new_rev_as_ref())
+                .append_to_file_name(Path::new(self.temp_dir.path()).join(&language_file.file_name))?;
             self.vcs.show(
                 &target_path_vcs.to_string_lossy(),
                 new_commit,
                 &file_path.to_string_lossy(),
             )?;
 
-            let query: query::CirupQuery;
-
-            if old_commit.is_none() {
-                query = query::query_diff(
-                    &source_path_out.to_string_lossy(),
-                    &file_path.to_string_lossy(),
-                );
+            let query: query::CirupQuery = if old_commit.is_none() {
+                query::query_diff(&source_path_out.to_string_lossy(), &file_path.to_string_lossy())
             } else {
                 let query_string = r"
                     SELECT
                         A.key, A.val
                     FROM A
                     LEFT OUTER JOIN B on A.key = B.key";
-                query = query::CirupQuery::new(
+                query::CirupQuery::new(
                     query_string,
                     &source_path_out.to_string_lossy(),
                     Some(&file_path.to_string_lossy()),
-                    None
-                );
-            }
+                    None,
+                )
+            };
 
             query.run_interactive(Some(&target_path_out.to_string_lossy()));
 

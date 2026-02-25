@@ -3,10 +3,10 @@ use std::fmt;
 use std::fs;
 use std::io::prelude::*;
 
-use file::load_string_from_file;
-use file::{FileFormat, FormatType};
+use crate::Resource;
+use crate::file::FileFormat;
+use crate::file::load_string_from_file;
 use std::error::Error;
-use Resource;
 
 /*
  * .restext file format:
@@ -15,14 +15,15 @@ use Resource;
  */
 
 lazy_static! {
-    static ref REGEX_RESTEXT: Regex = Regex::new(r"^\s*(\w+)=(.*)$").unwrap();
+    static ref REGEX_RESTEXT: Regex =
+        Regex::new(r"^\s*(\w+)=(.*)$").unwrap_or_else(|e| panic!("invalid restext regex: {}", e));
 }
 
-pub struct RestextFileFormat {}
+pub(crate) struct RestextFileFormat {}
 
 /* https://lise-henry.github.io/articles/optimising_strings.html */
 
-pub fn escape_newlines(input: &str) -> String {
+pub(crate) fn escape_newlines(input: &str) -> String {
     let mut output = String::new();
     for c in input.chars() {
         match c {
@@ -37,14 +38,16 @@ pub fn escape_newlines(input: &str) -> String {
 
 impl FileFormat for RestextFileFormat {
     const EXTENSION: &'static str = "restext";
-    const TYPE: FormatType = FormatType::Restext;
 
     fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<dyn Error>> {
         let mut resources: Vec<Resource> = Vec::new();
 
         for line in text.lines() {
             if REGEX_RESTEXT.is_match(line) {
-                let captures = REGEX_RESTEXT.captures(line).unwrap();
+                let captures = match REGEX_RESTEXT.captures(line) {
+                    Some(captures) => captures,
+                    None => continue,
+                };
                 let name = &captures[1];
                 let value = &captures[2];
                 let resource = Resource::new(name, value);
@@ -60,27 +63,26 @@ impl FileFormat for RestextFileFormat {
         self.parse_from_str(text.as_ref())
     }
 
-    fn write_to_str(&self, resources: &Vec<Resource>) -> String {
+    fn write_to_str(&self, resources: &[Resource]) -> String {
         let mut output = String::new();
 
         for resource in resources {
             let escaped_value = escape_newlines(resource.value.as_str());
-            fmt::write(
-                &mut output,
-                format_args!("{}={}\r\n", resource.name, escaped_value),
-            )
-            .unwrap();
+            if fmt::write(&mut output, format_args!("{}={}\r\n", resource.name, escaped_value)).is_err() {
+                break;
+            }
         }
 
         output
     }
 
-    fn write_to_file(&self, filename: &str, resources: &Vec<Resource>) {
+    fn write_to_file(&self, filename: &str, resources: &[Resource]) {
         let bom: [u8; 3] = [0xEF, 0xBB, 0xBF];
         let text = self.write_to_str(resources);
-        let mut file = fs::File::create(filename).unwrap();
-        file.write_all(&bom).unwrap();
-        file.write_all(text.as_bytes()).unwrap();
+        let mut file = fs::File::create(filename).expect("failed to create restext file");
+        file.write_all(&bom).expect("failed to write UTF-8 BOM");
+        file.write_all(text.as_bytes())
+            .expect("failed to write restext content");
     }
 }
 
@@ -92,17 +94,20 @@ fn test_restext_parse() {
 
     let file_format = RestextFileFormat {};
 
-    let resources = file_format.parse_from_str(&text).unwrap();
+    let resources = match file_format.parse_from_str(text) {
+        Ok(resources) => resources,
+        Err(e) => panic!("restext parse failed: {}", e),
+    };
 
-    let resource = resources.get(0).unwrap();
+    let resource = &resources[0];
     assert_eq!(resource.name, "lblBoat");
     assert_eq!(resource.value, "I'm on a boat.");
 
-    let resource = resources.get(1).unwrap();
+    let resource = &resources[1];
     assert_eq!(resource.name, "lblYolo");
     assert_eq!(resource.value, "You only live once");
 
-    let resource = resources.get(2).unwrap();
+    let resource = &resources[2];
     assert_eq!(resource.name, "lblDogs");
     assert_eq!(resource.value, "Who let the dogs out?");
 }
@@ -122,7 +127,12 @@ fn test_restext_write() {
                          lblDogs=Who let the dogs out?\r\n";
 
     let actual_text = file_format.write_to_str(&resources);
-    println!("{}", actual_text);
-    println!("{}", expected_text);
     assert_eq!(actual_text, expected_text);
+}
+
+#[test]
+fn test_escape_newlines() {
+    let text = "line1\\line2\r\nline3";
+    let escaped = escape_newlines(text);
+    assert_eq!(escaped, "line1\\\\line2\\r\\nline3");
 }

@@ -8,13 +8,13 @@ pub struct Triple {
 }
 
 impl fmt::Debug for Triple {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{},{},{}", self.name, self.value, self.base)
     }
 }
 
 impl fmt::Display for Triple {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{},{},{}", self.name, self.value, self.base)
     }
 }
