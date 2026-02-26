@@ -146,7 +146,33 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: dist
-          merge-multiple: true
+
+      - name: Flatten artifact directories
+        shell: pwsh
+        run: |
+          $artifactDirs = Get-ChildItem -Path dist -Directory
+
+          $zipFiles = $artifactDirs |
+            ForEach-Object {
+              Get-ChildItem -Path $_.FullName -File -Filter 'cirup-*.zip'
+            }
+
+          $duplicateNames = $zipFiles |
+            Group-Object -Property Name |
+            Where-Object { $_.Count -gt 1 }
+
+          if ($duplicateNames) {
+            $names = $duplicateNames |
+              ForEach-Object { $_.Name } |
+              Sort-Object
+
+            throw "Duplicate archive names across artifacts: $($names -join ', ')"
+          }
+
+          $zipFiles |
+            ForEach-Object {
+              Move-Item -Path $_.FullName -Destination (Join-Path -Path 'dist' -ChildPath $_.Name) -Force
+            }
 
       - name: Generate checksums
         shell: pwsh
