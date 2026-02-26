@@ -1,0 +1,47 @@
+<Project>
+  <PropertyGroup Condition="'$(CirupEnabled)' == 'true'">
+    <_CirupHostRid Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</_CirupHostRid>
+    <_CirupHostRid Condition="'$(_CirupHostRid)' == ''">$([System.Runtime.InteropServices.RuntimeInformation]::RuntimeIdentifier)</_CirupHostRid>
+    <_CirupHostRidLower>$([System.String]::Copy('$(_CirupHostRid)').ToLowerInvariant())</_CirupHostRidLower>
+
+    <_CirupHostIsWin>$([System.String]::Copy('$(_CirupHostRidLower)').StartsWith('win'))</_CirupHostIsWin>
+    <_CirupHostIsLinux>$([System.String]::Copy('$(_CirupHostRidLower)').StartsWith('linux'))</_CirupHostIsLinux>
+    <_CirupHostIsOsx>$([System.String]::Copy('$(_CirupHostRidLower)').StartsWith('osx'))</_CirupHostIsOsx>
+    <_CirupHostHasArm64>$([System.String]::Copy('$(_CirupHostRidLower)').Contains('arm64'))</_CirupHostHasArm64>
+
+    <_CirupRid Condition="'$(_CirupHostIsWin)' == 'True' and '$(_CirupHostHasArm64)' == 'True'">win-arm64</_CirupRid>
+    <_CirupRid Condition="'$(_CirupHostIsWin)' == 'True' and '$(_CirupHostHasArm64)' != 'True'">win-x64</_CirupRid>
+    <_CirupRid Condition="'$(_CirupHostIsLinux)' == 'True' and '$(_CirupHostHasArm64)' == 'True'">linux-arm64</_CirupRid>
+    <_CirupRid Condition="'$(_CirupHostIsLinux)' == 'True' and '$(_CirupHostHasArm64)' != 'True'">linux-x64</_CirupRid>
+    <_CirupRid Condition="'$(_CirupHostIsOsx)' == 'True' and '$(_CirupHostHasArm64)' == 'True'">osx-arm64</_CirupRid>
+    <_CirupRid Condition="'$(_CirupHostIsOsx)' == 'True' and '$(_CirupHostHasArm64)' != 'True'">osx-x64</_CirupRid>
+
+    <_CirupExeSuffix Condition="'$(_CirupHostIsWin)' == 'True'">.exe</_CirupExeSuffix>
+    <_CirupPackageRoot>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '..'))</_CirupPackageRoot>
+    <_CirupExecutable>$([MSBuild]::NormalizePath('$(_CirupPackageRoot)', 'runtimes', '$(_CirupRid)', 'native', 'cirup$(_CirupExeSuffix)'))</_CirupExecutable>
+  </PropertyGroup>
+
+  <Target Name="CirupSortResx"
+          BeforeTargets="BeforeBuild"
+          Condition="'$(CirupEnabled)' == 'true' and '@(CirupResx)' != '' and '$(DesignTimeBuild)' != 'true'">
+    <Error Condition="'$(_CirupRid)' == ''" Text="Devolutions.Cirup.Build: unsupported host runtime '$(_CirupHostRid)'." />
+    <Error Condition="!Exists('$(_CirupExecutable)')" Text="Devolutions.Cirup.Build: executable not found at '$(_CirupExecutable)'." />
+
+    <Exec Command="chmod +x &quot;$(_CirupExecutable)&quot;"
+          Condition="'$(_CirupHostIsWin)' != 'True'" />
+
+    <ItemGroup>
+      <_CirupMissingResx Include="@(CirupResx)" Condition="!Exists('%(Identity)')" />
+    </ItemGroup>
+
+        <Error Condition="'@(_CirupMissingResx)' != ''"
+          Text="Devolutions.Cirup.Build: the following files do not exist: @(_CirupMissingResx, ', ')" />
+
+    <Message Importance="$(CirupLogImportance)"
+         Text="Devolutions.Cirup.Build: sorting @(CirupResx->Count()) RESX file(s) using '$(_CirupRid)'." />
+
+    <Exec Command="&quot;$(_CirupExecutable)&quot; file-sort &quot;%(CirupResx.Identity)&quot; $(CirupAdditionalArgs)"
+          WorkingDirectory="$(CirupWorkingDirectory)"
+          Condition="Exists('%(CirupResx.Identity)')" />
+  </Target>
+</Project>

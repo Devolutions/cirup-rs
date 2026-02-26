@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <NoBuild>true</NoBuild>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <NoPackageAnalysis>true</NoPackageAnalysis>
+
+    <PackageId>Devolutions.Cirup.Build</PackageId>
+    <Version Condition="'$(Version)' == ''">0.0.0-local</Version>
+    <Authors>Devolutions</Authors>
+    <Description>Cross-platform cirup executable packaged for MSBuild pre-build RESX sorting.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/Devolutions/cirup-rs</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <CirupNugetStagingDir Condition="'$(CirupNugetStagingDir)' == ''">$(MSBuildProjectDirectory)\staging</CirupNugetStagingDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="buildTransitive\Devolutions.Cirup.Build.props" Pack="true" PackagePath="buildTransitive\Devolutions.Cirup.Build.props" />
+    <None Include="buildTransitive\Devolutions.Cirup.Build.targets" Pack="true" PackagePath="buildTransitive\Devolutions.Cirup.Build.targets" />
+    <None Include="README.md" Pack="true" PackagePath="README.md" />
+
+    <None Include="$(CirupNugetStagingDir)\runtimes\**\*"
+          Pack="true"
+          PackagePath="runtimes\%(RecursiveDir)%(Filename)%(Extension)"
+          Visible="false"
+          Condition="Exists('$(CirupNugetStagingDir)')" />
+  </ItemGroup>
+
+  <Target Name="ValidateCirupNugetStaging" BeforeTargets="GenerateNuspec">
+    <Error Condition="!Exists('$(CirupNugetStagingDir)\\runtimes\\win-x64\\native\\cirup.exe')" Text="Missing staged binary: runtimes/win-x64/native/cirup.exe" />
+    <Error Condition="!Exists('$(CirupNugetStagingDir)\\runtimes\\win-arm64\\native\\cirup.exe')" Text="Missing staged binary: runtimes/win-arm64/native/cirup.exe" />
+    <Error Condition="!Exists('$(CirupNugetStagingDir)\\runtimes\\linux-x64\\native\\cirup')" Text="Missing staged binary: runtimes/linux-x64/native/cirup" />
+    <Error Condition="!Exists('$(CirupNugetStagingDir)\\runtimes\\linux-arm64\\native\\cirup')" Text="Missing staged binary: runtimes/linux-arm64/native/cirup" />
+    <Error Condition="!Exists('$(CirupNugetStagingDir)\\runtimes\\osx-x64\\native\\cirup')" Text="Missing staged binary: runtimes/osx-x64/native/cirup" />
+    <Error Condition="!Exists('$(CirupNugetStagingDir)\\runtimes\\osx-arm64\\native\\cirup')" Text="Missing staged binary: runtimes/osx-arm64/native/cirup" />
+  </Target>
+</Project>

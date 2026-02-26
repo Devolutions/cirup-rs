@@ -162,6 +162,9 @@ This repository includes two workflows:
 - `CI` (`.github/workflows/ci.yml`)
 	- Runs on push and pull request.
 	- Validates formatting, clippy, and tests.
+	- Performs a dry-run split packaging flow:
+		- Builds platform `cirup` release archives.
+		- Packs `Devolutions.Cirup.Build` from downloaded prebuilt archives (no Rust rebuild in NuGet pack step).
 
 - `Release` (`.github/workflows/release.yml`)
 	- Runs when pushing tags that start with `v` (for example `v0.1.0`).
@@ -169,7 +172,34 @@ This repository includes two workflows:
 		- `linux-x64`, `linux-arm64`
 		- `windows-x64`, `windows-arm64`
 		- `macos-x64`, `macos-arm64`
-	- Publishes zip artifacts and a `checksums.txt` file to GitHub Releases.
+	- Publishes zip artifacts, a cross-platform `Devolutions.Cirup.Build.<version>.nupkg`, and a `checksums.txt` file to GitHub Releases.
+
+## NuGet package for .NET projects
+
+The release pipeline creates a `Devolutions.Cirup.Build` NuGet package that contains all supported platform binaries and an MSBuild `buildTransitive` target.
+
+Add it to a project and declare explicit RESX files:
+
+```xml
+<ItemGroup>
+	<PackageReference Include="Devolutions.Cirup.Build" Version="1.2.3" PrivateAssets="all" />
+
+  <CirupResx Include="Properties\Resources.resx" />
+  <CirupResx Include="Properties\Resources.fr.resx" />
+</ItemGroup>
+```
+
+This runs `cirup file-sort` on each `@(CirupResx)` file before build and fails the build on errors.
+
+### End-to-end NuGet validation
+
+Run the local end-to-end script to validate package packing and MSBuild execution against a sample .NET project:
+
+```bash
+pwsh ./packaging/nuget/test-e2e.ps1
+```
+
+The script packs `Devolutions.Cirup.Build` to a local feed under `target/tmp/nuget-e2e`, restores/builds `packaging/nuget/samples/Devolutions.Cirup.Build.E2E`, and verifies sample `.resx` files were sorted.
 
 ## Creating a release
 

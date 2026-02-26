@@ -1,0 +1,1 @@
+Console.WriteLine("Devolutions.Cirup.Build E2E sample");

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <data name="alpha" xml:space="preserve">
+    <value>Alpha</value>
+  </data>
+  <data name="beta" xml:space="preserve">
+    <value>Beta</value>
+  </data>
+  <data name="zeta" xml:space="preserve">
+    <value>Zeta</value>
+  </data>
+</root>

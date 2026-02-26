@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::path::Path;
+use std::process::ExitCode;
 
 use clap::{ArgAction, Parser, Subcommand};
 use env_logger::{Builder, Env};
@@ -281,7 +282,7 @@ fn run(cli: &Cli, config: Option<Config>) -> Result<(), Box<dyn Error>> {
     }
 }
 
-fn main() {
+fn main() -> ExitCode {
     let cli = Cli::parse();
 
     let min_log_level = match cli.verbose {
@@ -298,13 +299,19 @@ fn main() {
     if let Some(config_file) = cli.config.as_deref() {
         match Config::new(Path::new(config_file)) {
             Ok(c) => config = Some(c),
-            Err(e) => error!("unable to read the config file ({})", e),
+            Err(e) => {
+                error!("unable to read the config file ({})", e);
+                return ExitCode::FAILURE;
+            }
         }
     }
 
     match run(&cli, config) {
-        Ok(()) => (),
-        Err(e) => error!("an unexpected error occured ({})", e),
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            error!("an unexpected error occured ({})", e);
+            ExitCode::FAILURE
+        }
     }
 }
 
