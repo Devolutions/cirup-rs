@@ -15,5 +15,29 @@
   <ItemGroup>
     <CirupResx Include="Resources\Strings.resx" />
     <CirupResx Include="Resources\Strings.fr.resx" />
+
+    <CirupDiffResx Include="Resources\Strings.resx">
+      <CompareTo>Resources\Strings.fr.resx</CompareTo>
+      <Destination>artifacts\cirup\missing.fr.restext</Destination>
+    </CirupDiffResx>
+
+    <CirupChangedValues Include="Resources\Strings.resx">
+      <CompareTo>Resources\Strings.fr.resx</CompareTo>
+      <Destination>artifacts\cirup\changed.fr.restext</Destination>
+    </CirupChangedValues>
+
+    <CirupMergeResx Include="Resources\Strings.resx">
+      <MergeFrom>Resources\Strings.fr.resx</MergeFrom>
+      <Destination>artifacts\cirup\merged.resx</Destination>
+    </CirupMergeResx>
+
+    <CirupSubtractResx Include="Resources\Strings.fr.resx">
+      <CompareTo>Resources\Strings.resx</CompareTo>
+      <Destination>artifacts\cirup\fr-only.restext</Destination>
+    </CirupSubtractResx>
+
+    <CirupConvertResources Include="Resources\Strings.resx">
+      <Destination>artifacts\cirup\Strings.restext</Destination>
+    </CirupConvertResources>
   </ItemGroup>
 </Project>

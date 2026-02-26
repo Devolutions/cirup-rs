@@ -27,14 +27,14 @@ function Get-ArchivePath {
 
 $packageProject = Join-Path $PSScriptRoot "Devolutions.Cirup.Build.Package.csproj"
 $extractRoot = Join-Path $stagingRoot "extract"
-$runtimeRoot = Join-Path $stagingRoot "runtimes"
+$toolsRoot = Join-Path $stagingRoot "tools\cirup"
 
 if (Test-Path -Path $stagingRoot) {
     Remove-Item -Path $stagingRoot -Recurse -Force
 }
 
 New-Item -Path $extractRoot -ItemType Directory -Force | Out-Null
-New-Item -Path $runtimeRoot -ItemType Directory -Force | Out-Null
+New-Item -Path $toolsRoot -ItemType Directory -Force | Out-Null
 New-Item -Path $OutputDir -ItemType Directory -Force | Out-Null
 
 $archives = @(
@@ -49,7 +49,7 @@ $archives = @(
 foreach ($entry in $archives) {
     $archivePath = Get-ArchivePath -Root $ArtifactsRoot -ArchiveName $entry.Archive
     $extractDir = Join-Path $extractRoot $entry.Rid
-    $destDir = Join-Path $runtimeRoot "$($entry.Rid)\native"
+    $destDir = Join-Path $toolsRoot $entry.Rid
     $destPath = Join-Path $destDir $entry.Binary
 
     New-Item -Path $extractDir -ItemType Directory -Force | Out-Null

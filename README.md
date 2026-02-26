@@ -176,7 +176,8 @@ This repository includes two workflows:
 
 ## NuGet package for .NET projects
 
-The release pipeline creates a `Devolutions.Cirup.Build` NuGet package that contains all supported platform binaries and an MSBuild `buildTransitive` target.
+The release pipeline creates a `Devolutions.Cirup.Build` NuGet package that contains all supported platform binaries and MSBuild `buildTransitive` targets.
+The target always runs the executable for the current host machine (build environment), not `$(RuntimeIdentifier)`.
 
 Add it to a project and declare explicit RESX files:
 
@@ -190,6 +191,7 @@ Add it to a project and declare explicit RESX files:
 ```
 
 This runs `cirup file-sort` on each `@(CirupResx)` file before build and fails the build on errors.
+The package also exposes explicit targets for diff, changed values, merge, subtract, convert, and a composite sync target.
 
 ### End-to-end NuGet validation
 
@@ -199,7 +201,7 @@ Run the local end-to-end script to validate package packing and MSBuild executio
 pwsh ./packaging/nuget/test-e2e.ps1
 ```
 
-The script packs `Devolutions.Cirup.Build` to a local feed under `target/tmp/nuget-e2e`, restores/builds `packaging/nuget/samples/Devolutions.Cirup.Build.E2E`, and verifies sample `.resx` files were sorted.
+The script packs `Devolutions.Cirup.Build` to a local feed under `target/tmp/nuget-e2e`, restores/builds `packaging/nuget/samples/Devolutions.Cirup.Build.E2E`, runs all Cirup targets, verifies generated artifacts, and ensures no `cirup` executable is copied into build outputs.
 
 ## Creating a release
 

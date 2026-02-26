@@ -1,6 +1,7 @@
 <Project>
   <PropertyGroup>
     <CirupEnabled Condition="'$(CirupEnabled)' == ''">true</CirupEnabled>
+    <CirupHostRuntimeIdentifier Condition="'$(CirupHostRuntimeIdentifier)' == ''"></CirupHostRuntimeIdentifier>
     <CirupWorkingDirectory Condition="'$(CirupWorkingDirectory)' == ''">$(MSBuildProjectDirectory)</CirupWorkingDirectory>
     <CirupAdditionalArgs Condition="'$(CirupAdditionalArgs)' == ''"></CirupAdditionalArgs>
     <CirupLogImportance Condition="'$(CirupLogImportance)' == ''">high</CirupLogImportance>

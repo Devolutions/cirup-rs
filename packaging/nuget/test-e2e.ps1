@@ -32,6 +32,9 @@ function Reset-SampleResx {
   <data name="zeta" xml:space="preserve">
     <value>Zeta FR</value>
   </data>
+    <data name="gamma" xml:space="preserve">
+        <value>Gamma FR</value>
+    </data>
   <data name="alpha" xml:space="preserve">
     <value>Alpha FR</value>
   </data>
@@ -65,6 +68,39 @@ function Assert-Sorted {
     }
 }
 
+function Assert-NoCirupInOutput {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SampleDir,
+        [Parameter(Mandatory = $true)]
+        [string]$Configuration
+    )
+
+    $outputRoot = Join-Path $SampleDir "bin\$Configuration"
+    if (-not (Test-Path -Path $outputRoot)) {
+        return
+    }
+
+    $matches = Get-ChildItem -Path $outputRoot -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -ieq "cirup.exe" -or $_.Name -ieq "cirup" }
+
+    if ($matches) {
+        $paths = $matches | ForEach-Object { $_.FullName }
+        throw "Unexpected cirup executable copied to build output:`n$($paths -join [Environment]::NewLine)"
+    }
+}
+
+function Assert-FileExists {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path -Path $Path -PathType Leaf)) {
+        throw "Expected file was not created: $Path"
+    }
+}
+
 $scriptRoot = $PSScriptRoot
 if (-not $scriptRoot) {
     $scriptRoot = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
@@ -79,6 +115,7 @@ $packageProject = Join-Path $packageRoot "Devolutions.Cirup.Build.Package.csproj
 $workRoot = Join-Path $repoRoot "target\tmp\nuget-e2e"
 $stagingRoot = Join-Path $workRoot "staging"
 $feedDir = Join-Path $workRoot "feed"
+$packagesDir = Join-Path $workRoot "packages"
 
 if (Test-Path -Path $workRoot) {
     Remove-Item -Path $workRoot -Recurse -Force
@@ -86,6 +123,7 @@ if (Test-Path -Path $workRoot) {
 
 New-Item -Path $stagingRoot -ItemType Directory -Force | Out-Null
 New-Item -Path $feedDir -ItemType Directory -Force | Out-Null
+New-Item -Path $packagesDir -ItemType Directory -Force | Out-Null
 
 $sourceBinary = Join-Path $repoRoot "target\debug\cirup.exe"
 if (-not (Test-Path -Path $sourceBinary)) {
@@ -115,7 +153,7 @@ $runtimeCopies = @(
 )
 
 foreach ($runtime in $runtimeCopies) {
-    $destDir = Join-Path $stagingRoot "runtimes\$($runtime.Rid)\native"
+    $destDir = Join-Path $stagingRoot "tools\cirup\$($runtime.Rid)"
     New-Item -Path $destDir -ItemType Directory -Force | Out-Null
     Copy-Item -Path $sourceBinary -Destination (Join-Path $destDir $runtime.Binary) -Force
 }
@@ -136,9 +174,26 @@ if (-not $packagePath) {
 
 Reset-SampleResx -SampleDir $sampleDir
 
+$sampleBin = Join-Path $sampleDir "bin"
+$sampleObj = Join-Path $sampleDir "obj"
+$sampleArtifacts = Join-Path $sampleDir "artifacts"
+if (Test-Path -Path $sampleBin) {
+    Remove-Item -Path $sampleBin -Recurse -Force
+}
+if (Test-Path -Path $sampleObj) {
+    Remove-Item -Path $sampleObj -Recurse -Force
+}
+if (Test-Path -Path $sampleArtifacts) {
+    Remove-Item -Path $sampleArtifacts -Recurse -Force
+}
+
 Push-Location $sampleDir
 try {
-    dotnet restore $sampleProject -p:CirupBuildVersion=$Version -p:RestoreAdditionalProjectSources=$feedDir
+    dotnet restore $sampleProject `
+        -p:CirupBuildVersion=$Version `
+        -p:RestoreAdditionalProjectSources=$feedDir `
+        -p:RestorePackagesPath=$packagesDir `
+        -p:RestoreNoCache=true
     if ($LASTEXITCODE -ne 0) {
         throw "dotnet restore failed with exit code $LASTEXITCODE"
     }
@@ -147,6 +202,12 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "dotnet build failed with exit code $LASTEXITCODE"
     }
+
+    dotnet msbuild $sampleProject '/t:CirupDiffResx;CirupChangedValues;CirupMergeResx;CirupSubtractResx;CirupConvertResources;CirupSyncResources' `
+        -p:CirupBuildVersion=$Version
+    if ($LASTEXITCODE -ne 0) {
+        throw "dotnet msbuild Cirup targets failed with exit code $LASTEXITCODE"
+    }
 }
 finally {
     Pop-Location
@@ -154,5 +215,11 @@ finally {
 
 Assert-Sorted -Path (Join-Path $sampleDir "Resources\Strings.resx")
 Assert-Sorted -Path (Join-Path $sampleDir "Resources\Strings.fr.resx")
+Assert-NoCirupInOutput -SampleDir $sampleDir -Configuration $Configuration
+Assert-FileExists -Path (Join-Path $sampleDir "artifacts\cirup\missing.fr.restext")
+Assert-FileExists -Path (Join-Path $sampleDir "artifacts\cirup\changed.fr.restext")
+Assert-FileExists -Path (Join-Path $sampleDir "artifacts\cirup\merged.resx")
+Assert-FileExists -Path (Join-Path $sampleDir "artifacts\cirup\fr-only.restext")
+Assert-FileExists -Path (Join-Path $sampleDir "artifacts\cirup\Strings.restext")
 
 Write-Host "E2E validation succeeded. Package: $($packagePath.FullName)"
