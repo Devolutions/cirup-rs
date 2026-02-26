@@ -147,38 +147,18 @@ jobs:
         with:
           path: dist
 
-      - name: Flatten artifact directories
-        shell: pwsh
-        run: |
-          $artifactDirs = Get-ChildItem -Path dist -Directory
-
-          $zipFiles = $artifactDirs |
-            ForEach-Object {
-              Get-ChildItem -Path $_.FullName -File -Filter 'cirup-*.zip'
-            }
-
-          $duplicateNames = $zipFiles |
-            Group-Object -Property Name |
-            Where-Object { $_.Count -gt 1 }
-
-          if ($duplicateNames) {
-            $names = $duplicateNames |
-              ForEach-Object { $_.Name } |
-              Sort-Object
-
-            throw "Duplicate archive names across artifacts: $($names -join ', ')"
-          }
-
-          $zipFiles |
-            ForEach-Object {
-              Move-Item -Path $_.FullName -Destination (Join-Path -Path 'dist' -ChildPath $_.Name) -Force
-            }
-
       - name: Generate checksums
         shell: pwsh
         working-directory: dist
         run: |
-          $lines = Get-ChildItem -File -Filter 'cirup-*.zip' |
+          $zipFiles = Get-ChildItem -Recurse -File -Filter 'cirup-*.zip' |
+            Sort-Object Name
+
+          if (-not $zipFiles) {
+            throw 'No release archives found under dist'
+          }
+
+          $lines = $zipFiles |
             Sort-Object Name |
             ForEach-Object {
               $hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -195,9 +175,13 @@ jobs:
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
           RELEASE_TARGET: ${{ github.sha }}
         run: |
-          $zipFiles = Get-ChildItem -Path dist -File -Filter 'cirup-*.zip' |
+          $zipFiles = Get-ChildItem -Path dist -Recurse -File -Filter 'cirup-*.zip' |
             Sort-Object Name |
             ForEach-Object { $_.FullName }
+
+          if (-not $zipFiles) {
+            throw 'No release archives found under dist'
+          }
 
           gh release view "$env:RELEASE_TAG" *> $null
 
