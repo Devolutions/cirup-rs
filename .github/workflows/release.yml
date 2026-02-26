@@ -146,14 +146,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: dist
-
-      - name: Flatten artifact directories
-        shell: pwsh
-        run: |
-          Get-ChildItem -Path dist -Recurse -File -Filter '*.zip' |
-            ForEach-Object {
-              Move-Item -Path $_.FullName -Destination (Join-Path -Path (Get-Location) -ChildPath 'dist') -Force
-            }
+          merge-multiple: true
 
       - name: Generate checksums
         shell: pwsh
