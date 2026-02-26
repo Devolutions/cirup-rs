@@ -147,19 +147,18 @@ jobs:
         with:
           path: dist
 
-      - name: Flatten artifact directories
-        shell: pwsh
-        run: |
-          Get-ChildItem -Path dist -Recurse -File -Filter '*.zip' |
-            ForEach-Object {
-              Move-Item -Path $_.FullName -Destination (Join-Path -Path (Get-Location) -ChildPath 'dist') -Force
-            }
-
       - name: Generate checksums
         shell: pwsh
         working-directory: dist
         run: |
-          $lines = Get-ChildItem -File -Filter 'cirup-*.zip' |
+          $zipFiles = Get-ChildItem -Recurse -File -Filter 'cirup-*.zip' |
+            Sort-Object Name
+
+          if (-not $zipFiles) {
+            throw 'No release archives found under dist'
+          }
+
+          $lines = $zipFiles |
             Sort-Object Name |
             ForEach-Object {
               $hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -173,12 +172,17 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
           RELEASE_TARGET: ${{ github.sha }}
         run: |
-          $zipFiles = Get-ChildItem -Path dist -File -Filter 'cirup-*.zip' |
+          $zipFiles = Get-ChildItem -Path dist -Recurse -File -Filter 'cirup-*.zip' |
             Sort-Object Name |
             ForEach-Object { $_.FullName }
+
+          if (-not $zipFiles) {
+            throw 'No release archives found under dist'
+          }
 
           gh release view "$env:RELEASE_TAG" *> $null
 
