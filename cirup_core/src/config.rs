@@ -51,6 +51,9 @@ pub struct QueryConfig {
 fn query_backend_kind_parse_aliases() {
     assert_eq!(QueryBackendKind::parse("rusqlite"), Some(QueryBackendKind::Rusqlite));
     assert_eq!(QueryBackendKind::parse("turso"), Some(QueryBackendKind::TursoLocal));
-    assert_eq!(QueryBackendKind::parse("turso_remote"), Some(QueryBackendKind::TursoRemote));
+    assert_eq!(
+        QueryBackendKind::parse("turso_remote"),
+        Some(QueryBackendKind::TursoRemote)
+    );
     assert_eq!(QueryBackendKind::parse("unknown"), None);
 }
