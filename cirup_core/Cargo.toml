@@ -1,6 +1,6 @@
 [package]
 name = "cirup_core"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Marc-André Moreau <marcandre.moreau@gmail.com>"]
 edition = "2024"
 
