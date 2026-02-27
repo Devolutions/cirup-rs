@@ -426,9 +426,7 @@ dependencies = [
 name = "cirup_core"
 version = "0.2.0"
 dependencies = [
- "chrono",
  "dot_json",
- "find_git",
  "lazy_static",
  "libsql",
  "log",
@@ -436,11 +434,8 @@ dependencies = [
  "regex",
  "rusqlite",
  "serde",
- "serde-xml-rs",
  "serde_json",
- "tempfile",
  "tokio",
- "toml 0.4.10",
  "treexml",
  "turso",
  "uuid 0.6.5",
@@ -677,9 +672,9 @@ dependencies = [
  "cc",
  "memchr",
  "rustc_version",
- "toml 0.9.12+spec-1.1.0",
+ "toml",
  "vswhom",
- "winreg 0.55.0",
+ "winreg",
 ]
 
 [[package]]
@@ -749,15 +744,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "error-chain"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9435d864e017c3c6afeac1654189b06cdb491cf2ff73dbf0d73b0f292f42ff8"
-dependencies = [
- "backtrace",
-]
-
-[[package]]
 name = "failure"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -808,16 +794,6 @@ name = "find-msvc-tools"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
-
-[[package]]
-name = "find_git"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b917757416fe02ec0d303e669082fd04037d44c1a7cb170fc556a6f6889d3161"
-dependencies = [
- "winapi",
- "winreg 0.5.1",
-]
 
 [[package]]
 name = "fnv"
@@ -2400,18 +2376,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde-xml-rs"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27d98dfc234faa8532d66c837de56bf4276a259a43dd10ef96feb2fb7ab333b1"
-dependencies = [
- "error-chain",
- "log",
- "serde",
- "xml-rs",
-]
-
-[[package]]
 name = "serde_core"
 version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2770,15 +2734,6 @@ dependencies = [
  "futures-sink",
  "pin-project-lite",
  "tokio",
-]
-
-[[package]]
-name = "toml"
-version = "0.4.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "758664fc71a3a69038656bee8b6be6477d2a6c315a6b81f7081f591bffa4111f"
-dependencies = [
- "serde",
 ]
 
 [[package]]
@@ -3691,15 +3646,6 @@ name = "winnow"
 version = "0.7.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a5364e9d77fcdeeaa6062ced926ee3381faa2ee02d3eb83a5c27a8825540829"
-
-[[package]]
-name = "winreg"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a27a759395c1195c4cc5cda607ef6f8f6498f64e78f7900f5de0a127a424704a"
-dependencies = [
- "winapi",
-]
 
 [[package]]
 name = "winreg"

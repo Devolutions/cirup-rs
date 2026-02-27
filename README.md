@@ -16,60 +16,23 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets
 ```
 
-## Configuration
-
-Most commands require a configuration file:
-
-```toml
-[vcs]
-# The version control system to use
-plugin = "git"
-# The local path for the repository
-local_path = "/opt/wayk/i18n/WaykNow"
-# The remote path to the repository
-remote_path = "git@bitbucket.org:devolutions/wayknow.git"
-
-[sync]
-# The source language
-source_language = "en"
-# The target language(s)
-target_languages = [ "fr", "de" ]
-# A regex to match your language files
-match_language_file = "\\.json$"
-# A regex to match the language from the language filename
-match_language_name = "(.+?)(\\.[^.]*$|$)"
-# The relative path to the language files in the repository
-source_dir = "resources/i18n"
-# The location to export and import translations from
-working_dir = "/opt/wayk/i18n/WaykNow-Translations"
-
-[query]
-# Query backend: rusqlite | turso-local | turso-remote
-backend = "turso-local"
-
-[query.turso]
-# Required when using turso-remote
-url = "libsql://your-org.turso.io"
-auth_token = ""
-```
-
-### Query backend notes
+## Query backend configuration
 
 - Default backend is `turso-local`.
 - Default build enables `turso-rust`, so no C-backed SQLite dependency is built by default.
 - Enable `rusqlite` (C-backed SQLite) explicitly with the `rusqlite-c` feature:
 
 ```bash
-cargo run -p cirup_cli --features rusqlite-c -- --config ./config.cirup pull
+cargo run -p cirup_cli --features rusqlite-c -- file-diff a.json b.json
 ```
 
 - Turso backends (`turso-local` and `turso-remote`) are available with default features:
 
 ```bash
-cargo run -p cirup_cli -- --config ./config.cirup pull
+cargo run -p cirup_cli -- file-diff a.json b.json
 ```
 
-- For file commands without a config, you can override the default at runtime:
+- You can override the backend at runtime:
 
 ```bash
 set CIRUP_QUERY_BACKEND=turso-local
@@ -110,41 +73,6 @@ cargo test -p cirup_core --features rusqlite-c benchmark_correctness_rusqlite_vs
 ```
 
 ## Main commands
-
-### `vcs-log`
-
-Shows version control history for the source language file.
-You must specify an old commit and may optionally provide a new commit.
-
-Commits are listed newest first as:
-`%commit - %date - %author - %message`
-
-Example:
-
-```bash
-cirup vcs-log --old-commit ac8d579fd --limit 20
-```
-
-### `vcs-diff`
-
-Diffs two commits of the source language file.
-You must specify an old commit and may optionally provide a new commit.
-
-### `pull`
-
-Generates translation files for target languages.
-You can specify a commit range, and optionally include changed strings with `--show-changes`.
-
-Example:
-
-```bash
-cirup pull --old-commit ac8d579fd --show-changes
-```
-
-### `push`
-
-Merges translated files from the working directory back into version control.
-You can specify a commit range to merge a specific set of changes.
 
 ### Other commands
 

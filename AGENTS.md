@@ -6,7 +6,7 @@ This file provides guidance for human and AI contributors working in this reposi
 
 - Workspace: Rust Cargo workspace
 - Crates:
-  - `cirup_core`: core engine (config, parsing formats, query/sync/vcs logic)
+  - `cirup_core`: core engine (query backend config, parsing formats, query logic)
   - `cirup_cli`: command-line frontend (`cirup` binary)
 
 ## Repository structure
@@ -16,8 +16,6 @@ This file provides guidance for human and AI contributors working in this reposi
 - `cirup_core/src/file.rs`: resource file loading/saving abstraction
 - `cirup_core/src/{json,restext,resx}.rs`: format implementations
 - `cirup_core/src/query.rs`: query engine and helper operations
-- `cirup_core/src/sync.rs`: pull/push synchronization flow
-- `cirup_core/src/vcs.rs`: VCS abstraction and git/svn implementations
 
 ## Development workflow
 
@@ -46,7 +44,7 @@ cargo fmt --all
 ## Testing guidance
 
 - For logic changes in `cirup_core`, run `cargo test --workspace`.
-- Add or update unit tests when changing parsing/query/sync logic.
+- Add or update unit tests when changing parsing/query logic.
 - Do not introduce flaky tests or tests that require network access.
 
 ## Lint and formatting notes
@@ -69,6 +67,6 @@ cargo fmt --all
 
 Use short, imperative commit messages that describe intent, for example:
 
-- `Fix sync language file filtering`
+- `Fix resource language file filtering`
 - `Add release workflow for multi-platform artifacts`
 - `Reduce clippy warnings in query module`
