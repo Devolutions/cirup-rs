@@ -2,9 +2,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Version,
 
-    [string]$ArtifactsRoot = (Join-Path $PSScriptRoot "..\..\dist"),
+    [string]$ArtifactsRoot = (Join-Path $PSScriptRoot "..\dist"),
     [string]$StagingRoot = (Join-Path $PSScriptRoot "staging"),
-    [string]$OutputDir = (Join-Path $PSScriptRoot "..\..\dist\nuget")
+    [string]$OutputDir = (Join-Path $PSScriptRoot "..\dist\nuget")
 )
 
 $ErrorActionPreference = "Stop"

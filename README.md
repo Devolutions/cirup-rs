@@ -198,10 +198,10 @@ The package also exposes explicit targets for diff, changed values, merge, subtr
 Run the local end-to-end script to validate package packing and MSBuild execution against a sample .NET project:
 
 ```bash
-pwsh ./packaging/nuget/test-e2e.ps1
+pwsh ./nuget/test-e2e.ps1
 ```
 
-The script packs `Devolutions.Cirup.Build` to a local feed under `target/tmp/nuget-e2e`, restores/builds `packaging/nuget/samples/Devolutions.Cirup.Build.E2E`, runs all Cirup targets, verifies generated artifacts, and ensures no `cirup` executable is copied into build outputs.
+The script packs `Devolutions.Cirup.Build` to a local feed under `target/tmp/nuget-e2e`, restores/builds `nuget/samples/Devolutions.Cirup.Build.E2E`, runs all Cirup targets, verifies generated artifacts, and ensures no `cirup` executable is copied into build outputs.
 
 ## Creating a release
 

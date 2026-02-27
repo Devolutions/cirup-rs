@@ -98,10 +98,10 @@ Set `<CirupEnabled>false</CirupEnabled>` to disable sorting.
 
 ## End-to-end sample
 
-A runnable sample project is available at `packaging/nuget/samples/Devolutions.Cirup.Build.E2E`.
+A runnable sample project is available at `nuget/samples/Devolutions.Cirup.Build.E2E`.
 
 Run the full local validation flow from the repository root:
 
 ```powershell
-./packaging/nuget/test-e2e.ps1
+./nuget/test-e2e.ps1
 ```

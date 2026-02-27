@@ -249,9 +249,9 @@ jobs:
           }
 
           $version = $tag.Substring(1)
-          $stagingRoot = Join-Path $PWD "packaging/nuget/staging"
+          $stagingRoot = Join-Path $PWD "nuget/staging"
 
-          ./packaging/nuget/pack-cirup-nuget.ps1 `
+          ./nuget/pack-cirup-nuget.ps1 `
             -Version $version `
             -ArtifactsRoot "dist" `
             -StagingRoot $stagingRoot `

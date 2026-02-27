@@ -107,7 +107,7 @@ if (-not $scriptRoot) {
 }
 
 $packageRoot = Resolve-Path $scriptRoot | Select-Object -ExpandProperty Path
-$repoRoot = Resolve-Path (Join-Path $packageRoot "..\..") | Select-Object -ExpandProperty Path
+$repoRoot = Resolve-Path (Join-Path $packageRoot "..") | Select-Object -ExpandProperty Path
 $sampleDir = Join-Path $packageRoot "samples\Devolutions.Cirup.Build.E2E"
 $sampleProject = Join-Path $sampleDir "Devolutions.Cirup.Build.E2E.csproj"
 $packageProject = Join-Path $packageRoot "Devolutions.Cirup.Build.Package.csproj"
