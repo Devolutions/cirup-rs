@@ -179,18 +179,18 @@ This repository includes two workflows:
 The release pipeline creates a `Devolutions.Cirup.Build` NuGet package that contains all supported platform binaries and MSBuild `buildTransitive` targets.
 The target always runs the executable for the current host machine (build environment), not `$(RuntimeIdentifier)`.
 
-Add it to a project and declare explicit RESX files:
+Add it to a project and declare explicit resource files:
 
 ```xml
 <ItemGroup>
 	<PackageReference Include="Devolutions.Cirup.Build" Version="1.2.3" PrivateAssets="all" />
 
-  <CirupResx Include="Properties\Resources.resx" />
-  <CirupResx Include="Properties\Resources.fr.resx" />
+	<CirupResources Include="Properties\Resources.resx" />
+	<CirupResources Include="Properties\Resources.fr.resx" />
 </ItemGroup>
 ```
 
-This runs `cirup file-sort` on each `@(CirupResx)` file before build and fails the build on errors.
+This runs `cirup file-sort` on each `@(CirupResources)` file before build and fails the build on errors.
 The package also exposes explicit targets for diff, changed values, merge, subtract, convert, and a composite sync target.
 
 ### End-to-end NuGet validation

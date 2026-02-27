@@ -13,28 +13,28 @@
   </ItemGroup>
 
   <ItemGroup>
-    <CirupResx Include="Resources\Strings.resx" />
-    <CirupResx Include="Resources\Strings.fr.resx" />
+    <CirupResources Include="Resources\Strings.resx" />
+    <CirupResources Include="Resources\Strings.fr.resx" />
 
-    <CirupDiffResx Include="Resources\Strings.resx">
+    <CirupDiffResources Include="Resources\Strings.resx">
       <CompareTo>Resources\Strings.fr.resx</CompareTo>
       <Destination>artifacts\cirup\missing.fr.restext</Destination>
-    </CirupDiffResx>
+    </CirupDiffResources>
 
     <CirupChangedValues Include="Resources\Strings.resx">
       <CompareTo>Resources\Strings.fr.resx</CompareTo>
       <Destination>artifacts\cirup\changed.fr.restext</Destination>
     </CirupChangedValues>
 
-    <CirupMergeResx Include="Resources\Strings.resx">
+    <CirupMergeResources Include="Resources\Strings.resx">
       <MergeFrom>Resources\Strings.fr.resx</MergeFrom>
       <Destination>artifacts\cirup\merged.resx</Destination>
-    </CirupMergeResx>
+    </CirupMergeResources>
 
-    <CirupSubtractResx Include="Resources\Strings.fr.resx">
+    <CirupSubtractResources Include="Resources\Strings.fr.resx">
       <CompareTo>Resources\Strings.resx</CompareTo>
       <Destination>artifacts\cirup\fr-only.restext</Destination>
-    </CirupSubtractResx>
+    </CirupSubtractResources>
 
     <CirupConvertResources Include="Resources\Strings.resx">
       <Destination>artifacts\cirup\Strings.restext</Destination>

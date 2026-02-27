@@ -203,7 +203,7 @@ try {
         throw "dotnet build failed with exit code $LASTEXITCODE"
     }
 
-    dotnet msbuild $sampleProject '/t:CirupDiffResx;CirupChangedValues;CirupMergeResx;CirupSubtractResx;CirupConvertResources;CirupSyncResources' `
+    dotnet msbuild $sampleProject '/t:CirupDiffResources;CirupChangedValues;CirupMergeResources;CirupSubtractResources;CirupConvertResources;CirupSyncResources' `
         -p:CirupBuildVersion=$Version
     if ($LASTEXITCODE -ne 0) {
         throw "dotnet msbuild Cirup targets failed with exit code $LASTEXITCODE"

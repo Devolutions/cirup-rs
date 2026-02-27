@@ -4,7 +4,7 @@
 
 ## What it does
 
-- Runs `cirup file-sort` on each file declared in `@(CirupResx)`.
+- Runs `cirup file-sort` on each file declared in `@(CirupResources)`.
 - Exposes optional diff/changed/merge/subtract/convert targets for explicit build steps.
 - Resolves the executable for the current host OS/architecture (build machine), not the project target RID.
 - Executes sorting before build.
@@ -12,14 +12,14 @@
 
 ## Usage
 
-Add the package and an explicit `.resx` list in your project:
+Add the package and an explicit resource-file list in your project:
 
 ```xml
 <ItemGroup>
   <PackageReference Include="Devolutions.Cirup.Build" Version="1.2.3" PrivateAssets="all" />
 
-  <CirupResx Include="Properties\Resources.resx" />
-  <CirupResx Include="Properties\Resources.fr.resx" />
+  <CirupResources Include="Properties\Resources.resx" />
+  <CirupResources Include="Properties\Resources.fr.resx" />
 </ItemGroup>
 ```
 
@@ -27,11 +27,11 @@ Add the package and an explicit `.resx` list in your project:
 
 The package exposes the following targets:
 
-- `CirupSortResx` (auto-runs before build when `@(CirupResx)` is defined)
-- `CirupDiffResx`
+- `CirupSortResources` (auto-runs before build when `@(CirupResources)` is defined)
+- `CirupDiffResources`
 - `CirupChangedValues`
-- `CirupMergeResx`
-- `CirupSubtractResx`
+- `CirupMergeResources`
+- `CirupSubtractResources`
 - `CirupConvertResources`
 - `CirupSyncResources` (composite target that runs all Cirup targets)
 
@@ -39,27 +39,27 @@ Example item definitions:
 
 ```xml
 <ItemGroup>
-  <CirupResx Include="Properties\Resources.resx" />
+  <CirupResources Include="Properties\Resources.resx" />
 
-  <CirupDiffResx Include="Properties\Resources.resx">
+  <CirupDiffResources Include="Properties\Resources.resx">
     <CompareTo>Properties\Resources.fr.resx</CompareTo>
     <Destination>artifacts\cirup\missing.fr.restext</Destination>
-  </CirupDiffResx>
+  </CirupDiffResources>
 
   <CirupChangedValues Include="Properties\Resources.resx">
     <CompareTo>Properties\Resources.fr.resx</CompareTo>
     <Destination>artifacts\cirup\changed.fr.restext</Destination>
   </CirupChangedValues>
 
-  <CirupMergeResx Include="Properties\Resources.resx">
+  <CirupMergeResources Include="Properties\Resources.resx">
     <MergeFrom>Properties\Resources.fr.resx</MergeFrom>
     <Destination>artifacts\cirup\merged.resx</Destination>
-  </CirupMergeResx>
+  </CirupMergeResources>
 
-  <CirupSubtractResx Include="Properties\Resources.fr.resx">
+  <CirupSubtractResources Include="Properties\Resources.fr.resx">
     <CompareTo>Properties\Resources.resx</CompareTo>
     <Destination>artifacts\cirup\fr-only.restext</Destination>
-  </CirupSubtractResx>
+  </CirupSubtractResources>
 
   <CirupConvertResources Include="Properties\Resources.resx">
     <Destination>artifacts\cirup\Resources.restext</Destination>
@@ -70,15 +70,15 @@ Example item definitions:
 Run explicit targets with:
 
 ```powershell
-dotnet msbuild -t:CirupDiffResx;CirupChangedValues;CirupMergeResx;CirupSubtractResx;CirupConvertResources
+dotnet msbuild -t:CirupDiffResources;CirupChangedValues;CirupMergeResources;CirupSubtractResources;CirupConvertResources
 ```
 
 Item metadata contract:
 
-- `CirupDiffResx`: `CompareTo` (required), `Destination` (optional)
+- `CirupDiffResources`: `CompareTo` (required), `Destination` (optional)
 - `CirupChangedValues`: `CompareTo` (required), `Destination` (optional)
-- `CirupMergeResx`: `MergeFrom` (required), `Destination` (optional, defaults to in-place)
-- `CirupSubtractResx`: `CompareTo` (required), `Destination` (optional)
+- `CirupMergeResources`: `MergeFrom` (required), `Destination` (optional, defaults to in-place)
+- `CirupSubtractResources`: `CompareTo` (required), `Destination` (optional)
 - `CirupConvertResources`: `Destination` (required)
 
 ## Optional MSBuild properties
