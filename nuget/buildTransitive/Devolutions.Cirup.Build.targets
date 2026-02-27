@@ -1,0 +1,219 @@
+<Project>
+  <Target Name="_CirupResolveExecutable"
+          Condition="'$(CirupEnabled)' == 'true'">
+    <PropertyGroup>
+      <_CirupHostRid Condition="'$(CirupHostRuntimeIdentifier)' != ''">$(CirupHostRuntimeIdentifier)</_CirupHostRid>
+      <_CirupHostRid Condition="'$(_CirupHostRid)' == ''">$([System.Runtime.InteropServices.RuntimeInformation]::RuntimeIdentifier)</_CirupHostRid>
+      <_CirupHostRidLower>$([System.String]::Copy('$(_CirupHostRid)').ToLowerInvariant())</_CirupHostRidLower>
+
+      <_CirupHostIsWin>$([System.String]::Copy('$(_CirupHostRidLower)').StartsWith('win'))</_CirupHostIsWin>
+      <_CirupHostIsLinux>$([System.String]::Copy('$(_CirupHostRidLower)').StartsWith('linux'))</_CirupHostIsLinux>
+      <_CirupHostIsOsx>$([System.String]::Copy('$(_CirupHostRidLower)').StartsWith('osx'))</_CirupHostIsOsx>
+      <_CirupHostHasArm64>$([System.String]::Copy('$(_CirupHostRidLower)').Contains('arm64'))</_CirupHostHasArm64>
+
+      <_CirupRid Condition="'$(_CirupHostIsWin)' == 'True' and '$(_CirupHostHasArm64)' == 'True'">win-arm64</_CirupRid>
+      <_CirupRid Condition="'$(_CirupHostIsWin)' == 'True' and '$(_CirupHostHasArm64)' != 'True'">win-x64</_CirupRid>
+      <_CirupRid Condition="'$(_CirupHostIsLinux)' == 'True' and '$(_CirupHostHasArm64)' == 'True'">linux-arm64</_CirupRid>
+      <_CirupRid Condition="'$(_CirupHostIsLinux)' == 'True' and '$(_CirupHostHasArm64)' != 'True'">linux-x64</_CirupRid>
+      <_CirupRid Condition="'$(_CirupHostIsOsx)' == 'True' and '$(_CirupHostHasArm64)' == 'True'">osx-arm64</_CirupRid>
+      <_CirupRid Condition="'$(_CirupHostIsOsx)' == 'True' and '$(_CirupHostHasArm64)' != 'True'">osx-x64</_CirupRid>
+
+      <_CirupExeSuffix Condition="'$(_CirupHostIsWin)' == 'True'">.exe</_CirupExeSuffix>
+      <_CirupPackageRoot>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '..'))</_CirupPackageRoot>
+      <_CirupExecutable>$([MSBuild]::NormalizePath('$(_CirupPackageRoot)', 'tools', 'cirup', '$(_CirupRid)', 'cirup$(_CirupExeSuffix)'))</_CirupExecutable>
+    </PropertyGroup>
+
+    <Error Condition="'$(_CirupRid)' == ''" Text="Devolutions.Cirup.Build: unsupported host runtime '$(_CirupHostRid)'." />
+    <Error Condition="!Exists('$(_CirupExecutable)')" Text="Devolutions.Cirup.Build: executable not found at '$(_CirupExecutable)'." />
+
+    <Exec Command="chmod +x &quot;$(_CirupExecutable)&quot;"
+          Condition="'$(_CirupHostIsWin)' != 'True'" />
+  </Target>
+
+  <Target Name="CirupSortResources"
+          DependsOnTargets="_CirupResolveExecutable"
+          BeforeTargets="BeforeBuild"
+          Condition="'$(CirupEnabled)' == 'true' and '@(CirupResources)' != '' and '$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <_CirupMissingResources Include="@(CirupResources)" Condition="!Exists('%(Identity)')" />
+    </ItemGroup>
+
+    <Error Condition="'@(_CirupMissingResources)' != ''"
+           Text="Devolutions.Cirup.Build: the following files do not exist: @(_CirupMissingResources, ', ')" />
+
+    <Message Importance="$(CirupLogImportance)"
+             Text="Devolutions.Cirup.Build: sorting @(CirupResources->Count()) resource file(s) using '$(_CirupRid)'." />
+
+    <Exec Command="&quot;$(_CirupExecutable)&quot; file-sort &quot;%(CirupResources.Identity)&quot; $(CirupAdditionalArgs)"
+          WorkingDirectory="$(CirupWorkingDirectory)"
+          Condition="Exists('%(CirupResources.Identity)')" />
+  </Target>
+
+  <Target Name="CirupDiffResources"
+          DependsOnTargets="_CirupResolveExecutable"
+          Condition="'$(CirupEnabled)' == 'true' and '@(CirupDiffResources)' != ''">
+    <ItemGroup>
+      <_CirupDiffMissingSource Include="@(CirupDiffResources)" Condition="!Exists('%(Identity)')" />
+      <_CirupDiffMissingCompare Include="@(CirupDiffResources)" Condition="'%(CompareTo)' == '' or !Exists('%(CompareTo)')" />
+    </ItemGroup>
+
+    <Error Condition="'@(_CirupDiffMissingSource)' != ''"
+           Text="Devolutions.Cirup.Build: CirupDiffResources source files do not exist: @(_CirupDiffMissingSource, ', ')" />
+    <Error Condition="'@(_CirupDiffMissingCompare)' != ''"
+           Text="Devolutions.Cirup.Build: CirupDiffResources CompareTo metadata is missing or file does not exist: @(_CirupDiffMissingCompare, ', ')" />
+
+    <Message Importance="$(CirupLogImportance)"
+             Text="Devolutions.Cirup.Build: running CirupDiffResources on @(CirupDiffResources->Count()) pair(s)." />
+
+            <ItemGroup>
+                  <_CirupDiffOutputDir Include="@(CirupDiffResources)"
+                                                                               Condition="'%(CirupDiffResources.Destination)' != ''">
+                        <OutputDir>$([System.IO.Path]::GetDirectoryName('%(CirupDiffResources.Destination)'))</OutputDir>
+                  </_CirupDiffOutputDir>
+            </ItemGroup>
+            <MakeDir Directories="@(_CirupDiffOutputDir->'%(OutputDir)')"
+                                     Condition="'@(_CirupDiffOutputDir)' != ''" />
+
+    <Exec Command="&quot;$(_CirupExecutable)&quot; file-diff &quot;%(CirupDiffResources.Identity)&quot; &quot;%(CirupDiffResources.CompareTo)&quot; $(CirupAdditionalArgs)"
+          WorkingDirectory="$(CirupWorkingDirectory)"
+          Condition="'%(CirupDiffResources.Destination)' == ''" />
+    <Exec Command="&quot;$(_CirupExecutable)&quot; file-diff &quot;%(CirupDiffResources.Identity)&quot; &quot;%(CirupDiffResources.CompareTo)&quot; &quot;%(CirupDiffResources.Destination)&quot; $(CirupAdditionalArgs)"
+          WorkingDirectory="$(CirupWorkingDirectory)"
+          Condition="'%(CirupDiffResources.Destination)' != ''" />
+  </Target>
+
+  <Target Name="CirupChangedValues"
+          DependsOnTargets="_CirupResolveExecutable"
+          Condition="'$(CirupEnabled)' == 'true' and '@(CirupChangedValues)' != ''">
+    <ItemGroup>
+      <_CirupChangedMissingSource Include="@(CirupChangedValues)" Condition="!Exists('%(Identity)')" />
+      <_CirupChangedMissingCompare Include="@(CirupChangedValues)" Condition="'%(CompareTo)' == '' or !Exists('%(CompareTo)')" />
+    </ItemGroup>
+
+    <Error Condition="'@(_CirupChangedMissingSource)' != ''"
+           Text="Devolutions.Cirup.Build: CirupChangedValues source files do not exist: @(_CirupChangedMissingSource, ', ')" />
+    <Error Condition="'@(_CirupChangedMissingCompare)' != ''"
+           Text="Devolutions.Cirup.Build: CirupChangedValues CompareTo metadata is missing or file does not exist: @(_CirupChangedMissingCompare, ', ')" />
+
+    <Message Importance="$(CirupLogImportance)"
+             Text="Devolutions.Cirup.Build: running CirupChangedValues on @(CirupChangedValues->Count()) pair(s)." />
+
+            <ItemGroup>
+                  <_CirupChangedOutputDir Include="@(CirupChangedValues)"
+                                                                                          Condition="'%(CirupChangedValues.Destination)' != ''">
+                        <OutputDir>$([System.IO.Path]::GetDirectoryName('%(CirupChangedValues.Destination)'))</OutputDir>
+                  </_CirupChangedOutputDir>
+            </ItemGroup>
+            <MakeDir Directories="@(_CirupChangedOutputDir->'%(OutputDir)')"
+                                     Condition="'@(_CirupChangedOutputDir)' != ''" />
+
+    <Exec Command="&quot;$(_CirupExecutable)&quot; --show-changes file-diff &quot;%(CirupChangedValues.Identity)&quot; &quot;%(CirupChangedValues.CompareTo)&quot; $(CirupAdditionalArgs)"
+          WorkingDirectory="$(CirupWorkingDirectory)"
+          Condition="'%(CirupChangedValues.Destination)' == ''" />
+    <Exec Command="&quot;$(_CirupExecutable)&quot; --show-changes file-diff &quot;%(CirupChangedValues.Identity)&quot; &quot;%(CirupChangedValues.CompareTo)&quot; &quot;%(CirupChangedValues.Destination)&quot; $(CirupAdditionalArgs)"
+          WorkingDirectory="$(CirupWorkingDirectory)"
+          Condition="'%(CirupChangedValues.Destination)' != ''" />
+  </Target>
+
+  <Target Name="CirupMergeResources"
+          DependsOnTargets="_CirupResolveExecutable"
+          Condition="'$(CirupEnabled)' == 'true' and '@(CirupMergeResources)' != ''">
+    <ItemGroup>
+      <_CirupMergeMissingSource Include="@(CirupMergeResources)" Condition="!Exists('%(Identity)')" />
+      <_CirupMergeMissingFrom Include="@(CirupMergeResources)" Condition="'%(MergeFrom)' == '' or !Exists('%(MergeFrom)')" />
+    </ItemGroup>
+
+    <Error Condition="'@(_CirupMergeMissingSource)' != ''"
+           Text="Devolutions.Cirup.Build: CirupMergeResources source files do not exist: @(_CirupMergeMissingSource, ', ')" />
+    <Error Condition="'@(_CirupMergeMissingFrom)' != ''"
+           Text="Devolutions.Cirup.Build: CirupMergeResources MergeFrom metadata is missing or file does not exist: @(_CirupMergeMissingFrom, ', ')" />
+
+    <Message Importance="$(CirupLogImportance)"
+             Text="Devolutions.Cirup.Build: running CirupMergeResources on @(CirupMergeResources->Count()) pair(s)." />
+
+            <ItemGroup>
+                  <_CirupMergeOutputDir Include="@(CirupMergeResources)"
+                                                                                    Condition="'%(CirupMergeResources.Destination)' != ''">
+                        <OutputDir>$([System.IO.Path]::GetDirectoryName('%(CirupMergeResources.Destination)'))</OutputDir>
+                  </_CirupMergeOutputDir>
+            </ItemGroup>
+            <MakeDir Directories="@(_CirupMergeOutputDir->'%(OutputDir)')"
+                                     Condition="'@(_CirupMergeOutputDir)' != ''" />
+
+    <Exec Command="&quot;$(_CirupExecutable)&quot; file-merge &quot;%(CirupMergeResources.Identity)&quot; &quot;%(CirupMergeResources.MergeFrom)&quot; &quot;%(CirupMergeResources.Identity)&quot; $(CirupAdditionalArgs)"
+          WorkingDirectory="$(CirupWorkingDirectory)"
+          Condition="'%(CirupMergeResources.Destination)' == ''" />
+    <Exec Command="&quot;$(_CirupExecutable)&quot; file-merge &quot;%(CirupMergeResources.Identity)&quot; &quot;%(CirupMergeResources.MergeFrom)&quot; &quot;%(CirupMergeResources.Destination)&quot; $(CirupAdditionalArgs)"
+          WorkingDirectory="$(CirupWorkingDirectory)"
+          Condition="'%(CirupMergeResources.Destination)' != ''" />
+  </Target>
+
+  <Target Name="CirupSubtractResources"
+          DependsOnTargets="_CirupResolveExecutable"
+          Condition="'$(CirupEnabled)' == 'true' and '@(CirupSubtractResources)' != ''">
+    <ItemGroup>
+      <_CirupSubtractMissingSource Include="@(CirupSubtractResources)" Condition="!Exists('%(Identity)')" />
+      <_CirupSubtractMissingCompare Include="@(CirupSubtractResources)" Condition="'%(CompareTo)' == '' or !Exists('%(CompareTo)')" />
+    </ItemGroup>
+
+    <Error Condition="'@(_CirupSubtractMissingSource)' != ''"
+           Text="Devolutions.Cirup.Build: CirupSubtractResources source files do not exist: @(_CirupSubtractMissingSource, ', ')" />
+    <Error Condition="'@(_CirupSubtractMissingCompare)' != ''"
+           Text="Devolutions.Cirup.Build: CirupSubtractResources CompareTo metadata is missing or file does not exist: @(_CirupSubtractMissingCompare, ', ')" />
+
+    <Message Importance="$(CirupLogImportance)"
+             Text="Devolutions.Cirup.Build: running CirupSubtractResources on @(CirupSubtractResources->Count()) pair(s)." />
+
+            <ItemGroup>
+                  <_CirupSubtractOutputDir Include="@(CirupSubtractResources)"
+                                                                                           Condition="'%(CirupSubtractResources.Destination)' != ''">
+                        <OutputDir>$([System.IO.Path]::GetDirectoryName('%(CirupSubtractResources.Destination)'))</OutputDir>
+                  </_CirupSubtractOutputDir>
+            </ItemGroup>
+            <MakeDir Directories="@(_CirupSubtractOutputDir->'%(OutputDir)')"
+                                     Condition="'@(_CirupSubtractOutputDir)' != ''" />
+
+    <Exec Command="&quot;$(_CirupExecutable)&quot; file-subtract &quot;%(CirupSubtractResources.Identity)&quot; &quot;%(CirupSubtractResources.CompareTo)&quot; $(CirupAdditionalArgs)"
+          WorkingDirectory="$(CirupWorkingDirectory)"
+          Condition="'%(CirupSubtractResources.Destination)' == ''" />
+    <Exec Command="&quot;$(_CirupExecutable)&quot; file-subtract &quot;%(CirupSubtractResources.Identity)&quot; &quot;%(CirupSubtractResources.CompareTo)&quot; &quot;%(CirupSubtractResources.Destination)&quot; $(CirupAdditionalArgs)"
+          WorkingDirectory="$(CirupWorkingDirectory)"
+          Condition="'%(CirupSubtractResources.Destination)' != ''" />
+  </Target>
+
+  <Target Name="CirupConvertResources"
+          DependsOnTargets="_CirupResolveExecutable"
+          Condition="'$(CirupEnabled)' == 'true' and '@(CirupConvertResources)' != ''">
+    <ItemGroup>
+      <_CirupConvertMissingSource Include="@(CirupConvertResources)" Condition="!Exists('%(Identity)')" />
+                  <_CirupConvertMissingDestination Include="@(CirupConvertResources)" Condition="'%(CirupConvertResources.Destination)' == ''" />
+    </ItemGroup>
+
+    <Error Condition="'@(_CirupConvertMissingSource)' != ''"
+           Text="Devolutions.Cirup.Build: CirupConvertResources source files do not exist: @(_CirupConvertMissingSource, ', ')" />
+    <Error Condition="'@(_CirupConvertMissingDestination)' != ''"
+           Text="Devolutions.Cirup.Build: CirupConvertResources items require Destination metadata: @(_CirupConvertMissingDestination, ', ')" />
+
+    <Message Importance="$(CirupLogImportance)"
+             Text="Devolutions.Cirup.Build: running CirupConvertResources on @(CirupConvertResources->Count()) file(s)." />
+
+            <ItemGroup>
+                  <_CirupConvertOutputDir Include="@(CirupConvertResources)"
+                                                                                          Condition="'%(CirupConvertResources.Destination)' != ''">
+                        <OutputDir>$([System.IO.Path]::GetDirectoryName('%(CirupConvertResources.Destination)'))</OutputDir>
+                  </_CirupConvertOutputDir>
+            </ItemGroup>
+            <MakeDir Directories="@(_CirupConvertOutputDir->'%(OutputDir)')"
+                                     Condition="'@(_CirupConvertOutputDir)' != ''" />
+
+    <Exec Command="&quot;$(_CirupExecutable)&quot; file-convert &quot;%(CirupConvertResources.Identity)&quot; &quot;%(CirupConvertResources.Destination)&quot; $(CirupAdditionalArgs)"
+          WorkingDirectory="$(CirupWorkingDirectory)" />
+  </Target>
+
+  <Target Name="CirupSyncResources"
+        DependsOnTargets="CirupSortResources;CirupDiffResources;CirupChangedValues;CirupMergeResources;CirupSubtractResources;CirupConvertResources"
+          Condition="'$(CirupEnabled)' == 'true'">
+    <Message Importance="$(CirupLogImportance)"
+             Text="Devolutions.Cirup.Build: CirupSyncResources completed." />
+  </Target>
+</Project>

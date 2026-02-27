@@ -1,44 +1,17 @@
 use std::error::Error;
-use std::path::Path;
+use std::process::ExitCode;
 
 use clap::{ArgAction, Parser, Subcommand};
 use env_logger::{Builder, Env};
 use log::error;
 
-use cirup_core::config::Config;
 use cirup_core::query;
-use cirup_core::sync::Sync;
 
 #[derive(Debug, Parser)]
 #[command(name = "cirup", author, version, about = "a translation continuous integration tool")]
 struct Cli {
     #[arg(short = 'v', long = "verbose", global = true, action = ArgAction::Count, help = "Sets the level of verbosity")]
     verbose: u8,
-
-    #[arg(
-        short = 'c',
-        long = "config",
-        global = true,
-        help = "Sets the configuration file to use"
-    )]
-    config: Option<String>,
-
-    #[arg(
-        short = 'o',
-        long = "old-commit",
-        global = true,
-        help = "a git hash specifying the old commit"
-    )]
-    old_commit: Option<String>,
-
-    #[arg(
-        short = 'n',
-        long = "new-commit",
-        global = true,
-        requires = "old_commit",
-        help = "a git hash specifying the new commit"
-    )]
-    new_commit: Option<String>,
 
     #[arg(short = 'C', long = "show-changes", global = true, action = ArgAction::SetTrue, help = "additionally print keys that have values in [file2] but that do not match the values in [file1]")]
     show_changes: bool,
@@ -49,35 +22,6 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    #[command(about = "generate translations for all languages into working_dir. [config] is required.")]
-    Pull,
-
-    #[command(about = "merge translations from working_dir back into source control. [config] is required.")]
-    Push,
-
-    #[command(
-        name = "vcs-log",
-        about = "show the version control history of the source language, newest first. [config] is required."
-    )]
-    VcsLog {
-        #[arg(
-            short = 'l',
-            long = "limit",
-            default_value_t = 0,
-            help = "limit the number of results returned"
-        )]
-        limit: u32,
-
-        #[arg(long = "format", help = "optional log output format")]
-        format: Option<String>,
-    },
-
-    #[command(
-        name = "vcs-diff",
-        about = "diff two commits of the source language. [config] is required. [old-commit] is required."
-    )]
-    VcsDiff,
-
     #[command(name = "file-print", about = "read [file] and output its contents")]
     FilePrint { file: String, output: Option<String> },
 
@@ -187,7 +131,7 @@ fn diff_with_base(old: &str, new: &str, base: &str) {
     query.run_triple_interactive();
 }
 
-fn run(cli: &Cli, config: Option<Config>) -> Result<(), Box<dyn Error>> {
+fn run(cli: &Cli) -> Result<(), Box<dyn Error>> {
     match &cli.command {
         Commands::FilePrint { file, output } => {
             print(file, output.as_deref());
@@ -221,59 +165,6 @@ fn run(cli: &Cli, config: Option<Config>) -> Result<(), Box<dyn Error>> {
             sort(file, output.as_deref());
             Ok(())
         }
-        Commands::VcsLog { limit, format } => match config {
-            Some(c) => {
-                let sync = Sync::new(&c)?;
-
-                sync.vcs.log(
-                    &sync.source_language_path().to_string_lossy(),
-                    format.as_deref(),
-                    cli.old_commit.as_deref(),
-                    cli.new_commit.as_deref(),
-                    true,
-                    *limit,
-                )?;
-
-                Ok(())
-            }
-            None => Err("configuration file required")?,
-        },
-        Commands::VcsDiff => match config {
-            Some(c) => {
-                let sync = Sync::new(&c)?;
-                let old_commit = match cli.old_commit.as_deref() {
-                    Some(value) => value,
-                    None => Err("old commit required")?,
-                };
-
-                sync.vcs.diff(
-                    &sync.source_language_path().to_string_lossy(),
-                    old_commit,
-                    cli.new_commit.as_deref(),
-                )?;
-
-                Ok(())
-            }
-            None => Err("configuration file required")?,
-        },
-        Commands::Pull => match config {
-            Some(c) => {
-                let sync = Sync::new(&c)?;
-                sync.pull(cli.old_commit.as_deref(), cli.new_commit.as_deref(), cli.show_changes)?;
-
-                Ok(())
-            }
-            None => Err("configuration file required")?,
-        },
-        Commands::Push => match config {
-            Some(c) => {
-                let sync = Sync::new(&c)?;
-                sync.push(cli.old_commit.as_deref(), cli.new_commit.as_deref())?;
-
-                Ok(())
-            }
-            None => Err("configuration file required")?,
-        },
         Commands::DiffWithBase { old, new, base } => {
             diff_with_base(old, new, base);
             Ok(())
@@ -281,7 +172,7 @@ fn run(cli: &Cli, config: Option<Config>) -> Result<(), Box<dyn Error>> {
     }
 }
 
-fn main() {
+fn main() -> ExitCode {
     let cli = Cli::parse();
 
     let min_log_level = match cli.verbose {
@@ -293,18 +184,12 @@ fn main() {
     let mut builder = Builder::from_env(Env::default().default_filter_or(min_log_level));
     builder.init();
 
-    let mut config: Option<Config> = None;
-
-    if let Some(config_file) = cli.config.as_deref() {
-        match Config::new(Path::new(config_file)) {
-            Ok(c) => config = Some(c),
-            Err(e) => error!("unable to read the config file ({})", e),
+    match run(&cli) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            error!("an unexpected error occured ({})", e);
+            ExitCode::FAILURE
         }
-    }
-
-    match run(&cli, config) {
-        Ok(()) => (),
-        Err(e) => error!("an unexpected error occured ({})", e),
     }
 }
 
@@ -328,16 +213,16 @@ mod tests {
     }
 
     #[test]
-    fn parse_vcs_log_limit() {
-        let cli = Cli::parse_from(["cirup", "--old-commit", "abc", "vcs-log", "--limit", "12"]);
+    fn parse_diff_with_base() {
+        let cli = Cli::parse_from(["cirup", "diff-with-base", "old.json", "new.json", "base.json"]);
 
-        assert_eq!(cli.old_commit.as_deref(), Some("abc"));
         match cli.command {
-            Commands::VcsLog { limit, format } => {
-                assert_eq!(limit, 12);
-                assert!(format.is_none());
+            Commands::DiffWithBase { old, new, base } => {
+                assert_eq!(old, "old.json");
+                assert_eq!(new, "new.json");
+                assert_eq!(base, "base.json");
             }
-            _ => panic!("expected vcs-log command"),
+            _ => panic!("expected diff-with-base command"),
         }
     }
 }

@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <CirupBuildVersion Condition="'$(CirupBuildVersion)' == ''">0.0.0-local</CirupBuildVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Devolutions.Cirup.Build" Version="$(CirupBuildVersion)" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <CirupResources Include="Resources\Strings.resx" />
+    <CirupResources Include="Resources\Strings.fr.resx" />
+
+    <CirupDiffResources Include="Resources\Strings.resx">
+      <CompareTo>Resources\Strings.fr.resx</CompareTo>
+      <Destination>artifacts\cirup\missing.fr.restext</Destination>
+    </CirupDiffResources>
+
+    <CirupChangedValues Include="Resources\Strings.resx">
+      <CompareTo>Resources\Strings.fr.resx</CompareTo>
+      <Destination>artifacts\cirup\changed.fr.restext</Destination>
+    </CirupChangedValues>
+
+    <CirupMergeResources Include="Resources\Strings.resx">
+      <MergeFrom>Resources\Strings.fr.resx</MergeFrom>
+      <Destination>artifacts\cirup\merged.resx</Destination>
+    </CirupMergeResources>
+
+    <CirupSubtractResources Include="Resources\Strings.fr.resx">
+      <CompareTo>Resources\Strings.resx</CompareTo>
+      <Destination>artifacts\cirup\fr-only.restext</Destination>
+    </CirupSubtractResources>
+
+    <CirupConvertResources Include="Resources\Strings.resx">
+      <Destination>artifacts\cirup\Strings.restext</Destination>
+    </CirupConvertResources>
+  </ItemGroup>
+</Project>

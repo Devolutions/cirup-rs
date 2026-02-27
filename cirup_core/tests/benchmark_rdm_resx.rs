@@ -353,6 +353,4 @@ fn benchmark_correctness_rusqlite_vs_turso_local() {
         "TOTAL comparative benchmark: rusqlite={:?}, turso-local={:?}, ratio(turso/rusqlite)={:.3}",
         total_rusqlite, total_turso, ratio
     );
-
-    println!("analyzed non-query CLI operations (not query-backend comparable): vcs-log, vcs-diff");
 }
