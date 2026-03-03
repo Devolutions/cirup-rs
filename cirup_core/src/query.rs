@@ -286,11 +286,11 @@ impl CirupQuery {
         self.engine.query_triple(&self.query)
     }
 
-    pub fn run_interactive(&self, out_file: Option<&str>) {
+    pub fn run_interactive(&self, out_file: Option<&str>, touch: bool) {
         let resources = self.run();
 
         if let Some(out_file) = out_file {
-            save_resource_file(out_file, &resources);
+            save_resource_file(out_file, &resources, touch);
         } else {
             print_resources_pretty(&resources);
         }
