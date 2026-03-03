@@ -16,6 +16,9 @@ struct Cli {
     #[arg(short = 'C', long = "show-changes", global = true, action = ArgAction::SetTrue, help = "additionally print keys that have values in [file2] but that do not match the values in [file1]")]
     show_changes: bool,
 
+    #[arg(long = "touch", global = true, action = ArgAction::SetTrue, help = "force writing output files even when output content has not changed")]
+    touch: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -81,48 +84,48 @@ enum Commands {
     DiffWithBase { old: String, new: String, base: String },
 }
 
-fn print(input: &str, out_file: Option<&str>) {
+fn print(input: &str, out_file: Option<&str>, touch: bool) {
     let query = query::query_print(input);
-    query.run_interactive(out_file);
+    query.run_interactive(out_file, touch);
 }
 
-fn diff(file_one: &str, file_two: &str, out_file: Option<&str>) {
+fn diff(file_one: &str, file_two: &str, out_file: Option<&str>, touch: bool) {
     let query = query::query_diff(file_one, file_two);
-    query.run_interactive(out_file);
+    query.run_interactive(out_file, touch);
 }
 
-fn change(file_one: &str, file_two: &str, out_file: Option<&str>) {
+fn change(file_one: &str, file_two: &str, out_file: Option<&str>, touch: bool) {
     let query = query::query_change(file_one, file_two);
-    query.run_interactive(out_file);
+    query.run_interactive(out_file, touch);
 }
 
-fn merge(file_one: &str, file_two: &str, out_file: Option<&str>) {
+fn merge(file_one: &str, file_two: &str, out_file: Option<&str>, touch: bool) {
     let query = query::query_merge(file_one, file_two);
-    query.run_interactive(out_file);
+    query.run_interactive(out_file, touch);
 }
 
-fn intersect(file_one: &str, file_two: &str, out_file: Option<&str>) {
+fn intersect(file_one: &str, file_two: &str, out_file: Option<&str>, touch: bool) {
     let query = query::query_intersect(file_one, file_two);
-    query.run_interactive(out_file);
+    query.run_interactive(out_file, touch);
 }
 
-fn subtract(file_one: &str, file_two: &str, out_file: Option<&str>) {
+fn subtract(file_one: &str, file_two: &str, out_file: Option<&str>, touch: bool) {
     let query = query::query_subtract(file_one, file_two);
-    query.run_interactive(out_file);
+    query.run_interactive(out_file, touch);
 }
 
-fn convert(file_one: &str, out_file: &str) {
+fn convert(file_one: &str, out_file: &str, touch: bool) {
     let query = query::query_convert(file_one);
-    query.run_interactive(Some(out_file));
+    query.run_interactive(Some(out_file), touch);
 }
 
-fn sort(file_one: &str, out_file: Option<&str>) {
+fn sort(file_one: &str, out_file: Option<&str>, touch: bool) {
     let query = query::query_sort(file_one);
 
     if out_file.is_some() {
-        query.run_interactive(out_file);
+        query.run_interactive(out_file, touch);
     } else {
-        query.run_interactive(Some(file_one));
+        query.run_interactive(Some(file_one), touch);
     }
 }
 
@@ -134,35 +137,35 @@ fn diff_with_base(old: &str, new: &str, base: &str) {
 fn run(cli: &Cli) -> Result<(), Box<dyn Error>> {
     match &cli.command {
         Commands::FilePrint { file, output } => {
-            print(file, output.as_deref());
+            print(file, output.as_deref(), cli.touch);
             Ok(())
         }
         Commands::FileDiff { file1, file2, output } => {
             if cli.show_changes {
-                change(file1, file2, output.as_deref());
+                change(file1, file2, output.as_deref(), cli.touch);
             } else {
-                diff(file1, file2, output.as_deref());
+                diff(file1, file2, output.as_deref(), cli.touch);
             }
             Ok(())
         }
         Commands::FileMerge { file1, file2, output } => {
-            merge(file1, file2, output.as_deref());
+            merge(file1, file2, output.as_deref(), cli.touch);
             Ok(())
         }
         Commands::FileIntersect { file1, file2, output } => {
-            intersect(file1, file2, output.as_deref());
+            intersect(file1, file2, output.as_deref(), cli.touch);
             Ok(())
         }
         Commands::FileSubtract { file1, file2, output } => {
-            subtract(file1, file2, output.as_deref());
+            subtract(file1, file2, output.as_deref(), cli.touch);
             Ok(())
         }
         Commands::FileConvert { file, output } => {
-            convert(file, output);
+            convert(file, output, cli.touch);
             Ok(())
         }
         Commands::FileSort { file, output } => {
-            sort(file, output.as_deref());
+            sort(file, output.as_deref(), cli.touch);
             Ok(())
         }
         Commands::DiffWithBase { old, new, base } => {
@@ -202,6 +205,7 @@ mod tests {
         let cli = Cli::parse_from(["cirup", "--show-changes", "file-diff", "a.json", "b.json", "out.json"]);
 
         assert!(cli.show_changes);
+        assert!(!cli.touch);
         match cli.command {
             Commands::FileDiff { file1, file2, output } => {
                 assert_eq!(file1, "a.json");
@@ -223,6 +227,20 @@ mod tests {
                 assert_eq!(base, "base.json");
             }
             _ => panic!("expected diff-with-base command"),
+        }
+    }
+
+    #[test]
+    fn parse_file_sort_with_touch() {
+        let cli = Cli::parse_from(["cirup", "--touch", "file-sort", "a.json"]);
+
+        assert!(cli.touch);
+        match cli.command {
+            Commands::FileSort { file, output } => {
+                assert_eq!(file, "a.json");
+                assert_eq!(output, None);
+            }
+            _ => panic!("expected file-sort command"),
         }
     }
 }
