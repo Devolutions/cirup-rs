@@ -30,34 +30,34 @@
 
     <None Include="$(CirupNugetStagingDir)\tools\cirup\win-x64\cirup.exe"
           Pack="true"
-          PackagePath="tools\net10.0\any\cirup.exe"
+          PackagePath="tools\net10.0\win-x64\cirup.exe"
           Visible="false"
           Condition="'$(RuntimeIdentifier)' == 'win-x64' and Exists('$(CirupNugetStagingDir)\tools\cirup\win-x64\cirup.exe')" />
     <None Include="$(CirupNugetStagingDir)\tools\cirup\win-arm64\cirup.exe"
           Pack="true"
-          PackagePath="tools\net10.0\any\cirup.exe"
+          PackagePath="tools\net10.0\win-arm64\cirup.exe"
           Visible="false"
           Condition="'$(RuntimeIdentifier)' == 'win-arm64' and Exists('$(CirupNugetStagingDir)\tools\cirup\win-arm64\cirup.exe')" />
 
     <None Include="$(CirupNugetStagingDir)\tools\cirup\linux-x64\cirup"
           Pack="true"
-          PackagePath="tools\net10.0\any\cirup"
+          PackagePath="tools\net10.0\linux-x64\cirup"
           Visible="false"
           Condition="'$(RuntimeIdentifier)' == 'linux-x64' and Exists('$(CirupNugetStagingDir)\tools\cirup\linux-x64\cirup')" />
     <None Include="$(CirupNugetStagingDir)\tools\cirup\linux-arm64\cirup"
           Pack="true"
-          PackagePath="tools\net10.0\any\cirup"
+          PackagePath="tools\net10.0\linux-arm64\cirup"
           Visible="false"
           Condition="'$(RuntimeIdentifier)' == 'linux-arm64' and Exists('$(CirupNugetStagingDir)\tools\cirup\linux-arm64\cirup')" />
 
     <None Include="$(CirupNugetStagingDir)\tools\cirup\osx-x64\cirup"
           Pack="true"
-          PackagePath="tools\net10.0\any\cirup"
+          PackagePath="tools\net10.0\osx-x64\cirup"
           Visible="false"
           Condition="'$(RuntimeIdentifier)' == 'osx-x64' and Exists('$(CirupNugetStagingDir)\tools\cirup\osx-x64\cirup')" />
     <None Include="$(CirupNugetStagingDir)\tools\cirup\osx-arm64\cirup"
           Pack="true"
-          PackagePath="tools\net10.0\any\cirup"
+          PackagePath="tools\net10.0\osx-arm64\cirup"
           Visible="false"
           Condition="'$(RuntimeIdentifier)' == 'osx-arm64' and Exists('$(CirupNugetStagingDir)\tools\cirup\osx-arm64\cirup')" />
   </ItemGroup>
