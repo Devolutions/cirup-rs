@@ -11,16 +11,17 @@ $ErrorActionPreference = "Stop"
 
 . (Join-Path $PSScriptRoot "scripts/Import-CirupArtifacts.ps1")
 
-$packageProject = Join-Path $PSScriptRoot "Devolutions.Cirup.Build.Package.csproj"
+$packageProject = Join-Path $PSScriptRoot "tool/Devolutions.Cirup.Tool.csproj"
+
 New-Item -Path $OutputDir -ItemType Directory -Force | Out-Null
 
 Import-CirupArtifacts -ArtifactsRoot $ArtifactsRoot -StagingRoot $StagingRoot
 
-Write-Host "Packing Devolutions.Cirup.Build $Version"
+Write-Host "Packing Devolutions.Cirup.Tool $Version"
 dotnet pack $packageProject `
     -c Release `
     -p:Version=$Version `
-    -p:CirupNugetStagingDir=$stagingRoot `
+    -p:CirupNugetStagingDir=$StagingRoot `
     -o $OutputDir
 
 if ($LASTEXITCODE -ne 0) {

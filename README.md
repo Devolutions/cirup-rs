@@ -150,6 +150,30 @@ Run local end-to-end validation:
 pwsh ./nuget/test-e2e.ps1
 ```
 
+## Dotnet tool usage (.NET 10+)
+
+`cirup` is also available as a RID-specific dotnet tool package: `Devolutions.Cirup.Tool`.
+
+Install globally:
+
+```bash
+dotnet tool install -g Devolutions.Cirup.Tool
+cirup --help
+```
+
+Run one-shot without permanent install:
+
+```bash
+dotnet tool exec Devolutions.Cirup.Tool -- --help
+dnx Devolutions.Cirup.Tool --help
+```
+
+Create local dotnet tool packages from prebuilt release artifacts:
+
+```bash
+pwsh ./nuget/pack-cirup-dotnet-tool.ps1 -Version 1.2.3 -ArtifactsRoot ./dist -OutputDir ./dist/nuget
+```
+
 ## Quality checks
 
 ```bash

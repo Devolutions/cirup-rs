@@ -2,3 +2,5 @@
 .vscode/
 .idea/
 target/
+nuget/tool/bin/
+nuget/tool/obj/
