@@ -225,3 +225,43 @@ jobs:
           name: devolutions-cirup-build-nupkg-dry-run
           path: dist/nuget/Devolutions.Cirup.Build.*.nupkg
           if-no-files-found: error
+
+  pack_dotnet_tool_dry_run:
+    name: Dry-run dotnet tool pack
+    runs-on: ubuntu-latest
+    needs: build_release_artifacts
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download native artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Import binaries and pack dotnet tool (dry-run)
+        shell: pwsh
+        env:
+          CI_RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          $version = "0.0.0-ci.$env:CI_RUN_NUMBER"
+          $stagingRoot = Join-Path $PWD "nuget/staging"
+
+          ./nuget/pack-cirup-dotnet-tool.ps1 `
+            -Version $version `
+            -ArtifactsRoot "dist" `
+            -StagingRoot $stagingRoot `
+            -OutputDir "dist/nuget"
+
+      - name: Upload dry-run dotnet tool artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: devolutions-cirup-tool-nupkg-dry-run
+          path: dist/nuget/Devolutions.Cirup.Tool*.nupkg
+          if-no-files-found: error

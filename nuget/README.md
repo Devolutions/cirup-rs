@@ -105,3 +105,32 @@ Run the full local validation flow from the repository root:
 ```powershell
 ./nuget/test-e2e.ps1
 ```
+
+## RID-specific dotnet tool package
+
+The repository also ships a separate RID-specific dotnet tool package: `Devolutions.Cirup.Tool`.
+
+- Package type: dotnet tool (command name `cirup`)
+- SDK requirement: .NET 10 SDK or newer
+- Supported RIDs: `win-x64`, `win-arm64`, `linux-x64`, `linux-arm64`, `osx-x64`, `osx-arm64`
+- Includes an `any` fallback package that prints a guidance message on unsupported runtimes
+
+Install and run:
+
+```powershell
+dotnet tool install -g Devolutions.Cirup.Tool
+cirup --help
+```
+
+One-shot usage:
+
+```powershell
+dotnet tool exec Devolutions.Cirup.Tool -- --help
+dnx Devolutions.Cirup.Tool --help
+```
+
+Pack from prebuilt native artifacts (same artifact input as `Devolutions.Cirup.Build`):
+
+```powershell
+./nuget/pack-cirup-dotnet-tool.ps1 -Version 1.2.3 -ArtifactsRoot ./dist -OutputDir ./dist/nuget
+```
