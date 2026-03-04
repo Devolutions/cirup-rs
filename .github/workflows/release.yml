@@ -34,6 +34,11 @@ jobs:
       publish_nuget: ${{ steps.info.outputs.publish_nuget }}
       dry_run: ${{ steps.info.outputs.dry_run }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Resolve release info
         id: info
         shell: pwsh
@@ -58,9 +63,19 @@ jobs:
 
           $eventName = '${{ github.event_name }}'
           $githubRef = '${{ github.ref }}'
+          $sourceBranch = '${{ github.ref_name }}'
 
           if ($eventName -eq 'push' -and $githubRef.StartsWith('refs/tags/v')) {
             $releaseTag = '${{ github.ref_name }}'
+
+            git fetch --prune --no-tags origin '+refs/heads/*:refs/remotes/origin/*'
+            $containsMaster = @(git branch -r --contains '${{ github.sha }}' | ForEach-Object { $_.Trim() }) -contains 'origin/master'
+            if ($containsMaster) {
+              $sourceBranch = 'master'
+            }
+            else {
+              $sourceBranch = 'non-master'
+            }
           }
           else {
             $releaseTag = '${{ github.event.inputs.tag }}'
@@ -70,12 +85,17 @@ jobs:
             throw "Release tag must start with 'v'. Actual: $releaseTag"
           }
 
-          if ($eventName -eq 'push' -and $githubRef.StartsWith('refs/tags/v')) {
+          if ($sourceBranch -eq 'master') {
             $publishEnv = 'publish-prod'
-            $publishNuget = $true
           }
           else {
             $publishEnv = 'publish-test'
+          }
+
+          if ($eventName -eq 'push' -and $githubRef.StartsWith('refs/tags/v')) {
+            $publishNuget = $true
+          }
+          else {
             $publishNuget = Parse-BoolOrDefault '${{ github.event.inputs.publish_nuget }}' $false
           }
 
@@ -98,6 +118,7 @@ jobs:
           "dry_run=$($dryRun.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
           Write-Host "::notice::Release tag: $releaseTag"
+          Write-Host "::notice::Source branch: $sourceBranch"
           Write-Host "::notice::Publish environment: $publishEnv"
           Write-Host "::notice::Publish NuGet: $($publishNuget.ToString().ToLowerInvariant())"
           Write-Host "::notice::NuGet dry-run: $($dryRun.ToString().ToLowerInvariant())"
@@ -264,6 +285,8 @@ jobs:
           CODE_SIGNING_TIMESTAMP_SERVER: ${{ vars.CODE_SIGNING_TIMESTAMP_SERVER }}
         run: |
           $dryRun = [System.Boolean]::Parse('${{ needs.preflight.outputs.dry_run }}')
+          $publishEnv = '${{ needs.preflight.outputs.publish_env }}'
+          $isTestSigning = $publishEnv -eq 'publish-test'
 
           $requiredValues = @(
             $env:CODE_SIGNING_KEYVAULT_URL,
@@ -282,10 +305,19 @@ jobs:
             }
           }
 
-          $shouldSign = -not $dryRun -and $hasSigningSecrets
+          if ($isTestSigning) {
+            $shouldSign = $hasSigningSecrets
+          }
+          else {
+            $shouldSign = -not $dryRun -and $hasSigningSecrets
+          }
 
           "dry_run=$($dryRun.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "should_sign=$($shouldSign.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+          if ($isTestSigning -and -not $hasSigningSecrets) {
+            throw 'Code signing secrets are required for test code signing in publish-test.'
+          }
 
           if (-not $dryRun -and -not $hasSigningSecrets) {
             throw 'Code signing secrets are required for non-dry-run release jobs.'
@@ -409,6 +441,7 @@ jobs:
           Get-Content -Path checksums.txt
 
       - name: Publish release assets
+        if: needs.preflight.outputs.dry_run != 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -450,6 +483,12 @@ jobs:
 
             gh release create @createArgs
           }
+
+      - name: "Dry Run: skip GitHub release publish"
+        if: needs.preflight.outputs.dry_run == 'true'
+        shell: pwsh
+        run: |
+          Write-Host 'Dry Run: skipping GitHub release create/upload.'
 
   pack_nuget:
     name: Pack NuGet from prebuilt binaries
