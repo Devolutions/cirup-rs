@@ -30,6 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_tag: ${{ steps.info.outputs.release_tag }}
+      build_ref: ${{ steps.info.outputs.build_ref }}
       publish_env: ${{ steps.info.outputs.publish_env }}
       publish_nuget: ${{ steps.info.outputs.publish_nuget }}
       dry_run: ${{ steps.info.outputs.dry_run }}
@@ -63,10 +64,13 @@ jobs:
 
           $eventName = '${{ github.event_name }}'
           $githubRef = '${{ github.ref }}'
+          $runSha = '${{ github.sha }}'
           $sourceBranch = '${{ github.ref_name }}'
+          $buildRef = $runSha
 
           if ($eventName -eq 'push' -and $githubRef.StartsWith('refs/tags/v')) {
             $releaseTag = '${{ github.ref_name }}'
+            $buildRef = $releaseTag
 
             git fetch --prune --no-tags origin '+refs/heads/*:refs/remotes/origin/*'
             $containsMaster = @(git branch -r --contains '${{ github.sha }}' | ForEach-Object { $_.Trim() }) -contains 'origin/master'
@@ -112,12 +116,36 @@ jobs:
             $dryRun = $true
           }
 
+          if ($eventName -eq 'workflow_dispatch' -and $sourceBranch -eq 'master' -and -not $dryRun) {
+            git fetch --tags --force origin
+            git show-ref --tags --verify --quiet "refs/tags/$releaseTag"
+            $tagExists = $LASTEXITCODE -eq 0
+
+            if ($tagExists) {
+              $existingTagCommit = (git rev-list -n 1 "$releaseTag").Trim()
+              if ($existingTagCommit -ne $runSha) {
+                throw "Tag '$releaseTag' already exists at $existingTagCommit (expected $runSha)."
+              }
+
+              Write-Host "::notice::Tag $releaseTag already exists at $runSha"
+            }
+            else {
+              git tag "$releaseTag" "$runSha"
+              git push origin "refs/tags/$releaseTag"
+              Write-Host "::notice::Created tag $releaseTag at $runSha"
+            }
+
+            $buildRef = $releaseTag
+          }
+
           "release_tag=$releaseTag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "build_ref=$buildRef" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "publish_env=$publishEnv" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "publish_nuget=$($publishNuget.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "dry_run=$($dryRun.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
           Write-Host "::notice::Release tag: $releaseTag"
+          Write-Host "::notice::Build ref: $buildRef"
           Write-Host "::notice::Source branch: $sourceBranch"
           Write-Host "::notice::Publish environment: $publishEnv"
           Write-Host "::notice::Publish NuGet: $($publishNuget.ToString().ToLowerInvariant())"
@@ -172,7 +200,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.preflight.outputs.release_tag }}
+          ref: ${{ needs.preflight.outputs.build_ref }}
 
       - name: Install Rust toolchain
         shell: pwsh
