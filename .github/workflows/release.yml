@@ -1,9 +1,6 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       version:
@@ -62,43 +59,24 @@ jobs:
             }
           }
 
-          $eventName = '${{ github.event_name }}'
-          $githubRef = '${{ github.ref }}'
           $runSha = '${{ github.sha }}'
           $sourceBranch = '${{ github.ref_name }}'
           $buildRef = $runSha
-          $isTagPush = $eventName -eq 'push' -and $githubRef.StartsWith('refs/tags/v')
-          $isWorkflowDispatch = $eventName -eq 'workflow_dispatch'
 
-          if ($isTagPush) {
-            $releaseTag = '${{ github.ref_name }}'
-            $buildRef = $releaseTag
-
-            git fetch --prune --no-tags origin '+refs/heads/*:refs/remotes/origin/*'
-            $containsMaster = @(git branch -r --contains '${{ github.sha }}' | ForEach-Object { $_.Trim() }) -contains 'origin/master'
-            if ($containsMaster) {
-              $sourceBranch = 'master'
-            }
-            else {
-              $sourceBranch = 'non-master'
-            }
+          $releaseVersion = '${{ github.event.inputs.version }}'.Trim()
+          if ([string]::IsNullOrWhiteSpace($releaseVersion)) {
+            throw 'Workflow input version is required.'
           }
-          else {
-            $releaseVersion = '${{ github.event.inputs.version }}'.Trim()
-            if ([string]::IsNullOrWhiteSpace($releaseVersion)) {
-              throw 'Workflow input version is required.'
-            }
 
-            if ($releaseVersion.StartsWith('v')) {
-              $releaseVersion = $releaseVersion.Substring(1)
-            }
-
-            if ($releaseVersion -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$') {
-              throw "Invalid version format: $releaseVersion (expected 1.2.3 or 1.2.3-suffix)."
-            }
-
-            $releaseTag = "v$releaseVersion"
+          if ($releaseVersion.StartsWith('v')) {
+            $releaseVersion = $releaseVersion.Substring(1)
           }
+
+          if ($releaseVersion -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$') {
+            throw "Invalid version format: $releaseVersion (expected 1.2.3 or 1.2.3-suffix)."
+          }
+
+          $releaseTag = "v$releaseVersion"
 
           if (-not $releaseTag.StartsWith('v')) {
             throw "Release tag must start with 'v'. Actual: $releaseTag"
@@ -113,17 +91,9 @@ jobs:
             $publishEnv = 'publish-test'
           }
 
-          if ($isTagPush) {
-            $publishNuget = $true
-          }
-          else {
-            $publishNuget = Parse-BoolOrDefault '${{ github.event.inputs.publish_nuget }}' $false
-          }
+          $publishNuget = Parse-BoolOrDefault '${{ github.event.inputs.publish_nuget }}' $false
 
-          $dryRun = $false
-          if ($isWorkflowDispatch) {
-            $dryRun = Parse-BoolOrDefault '${{ github.event.inputs.dry_run_nuget }}' $true
-          }
+          $dryRun = Parse-BoolOrDefault '${{ github.event.inputs.dry_run_nuget }}' $true
 
           if (-not $isMasterBranch) {
             $dryRun = $true
@@ -512,10 +482,8 @@ jobs:
             $createArgs += "dist/checksums.txt"
             $createArgs += "--generate-notes"
 
-            if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
-              $createArgs += "--target"
-              $createArgs += "$env:RELEASE_TARGET"
-            }
+            $createArgs += "--target"
+            $createArgs += "$env:RELEASE_TARGET"
 
             gh release create @createArgs
           }
@@ -532,9 +500,6 @@ jobs:
     needs:
       - preflight
       - sign_windows
-    if: |
-      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
-      (github.event_name == 'workflow_dispatch')
 
     steps:
       - name: Checkout
@@ -582,9 +547,6 @@ jobs:
     needs:
       - preflight
       - sign_windows
-    if: |
-      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
-      (github.event_name == 'workflow_dispatch')
 
     steps:
       - name: Checkout
