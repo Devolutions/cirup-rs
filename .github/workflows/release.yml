@@ -6,8 +6,8 @@ on:
       - "v*"
   workflow_dispatch:
     inputs:
-      tag:
-        description: Release tag to build/publish (for example v0.1.0)
+      version:
+        description: Release version to build/publish (for example 0.4.0)
         required: true
         type: string
       publish_nuget:
@@ -67,8 +67,10 @@ jobs:
           $runSha = '${{ github.sha }}'
           $sourceBranch = '${{ github.ref_name }}'
           $buildRef = $runSha
+          $isTagPush = $eventName -eq 'push' -and $githubRef.StartsWith('refs/tags/v')
+          $isWorkflowDispatch = $eventName -eq 'workflow_dispatch'
 
-          if ($eventName -eq 'push' -and $githubRef.StartsWith('refs/tags/v')) {
+          if ($isTagPush) {
             $releaseTag = '${{ github.ref_name }}'
             $buildRef = $releaseTag
 
@@ -82,21 +84,36 @@ jobs:
             }
           }
           else {
-            $releaseTag = '${{ github.event.inputs.tag }}'
+            $releaseVersion = '${{ github.event.inputs.version }}'.Trim()
+            if ([string]::IsNullOrWhiteSpace($releaseVersion)) {
+              throw 'Workflow input version is required.'
+            }
+
+            if ($releaseVersion.StartsWith('v')) {
+              $releaseVersion = $releaseVersion.Substring(1)
+            }
+
+            if ($releaseVersion -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$') {
+              throw "Invalid version format: $releaseVersion (expected 1.2.3 or 1.2.3-suffix)."
+            }
+
+            $releaseTag = "v$releaseVersion"
           }
 
           if (-not $releaseTag.StartsWith('v')) {
             throw "Release tag must start with 'v'. Actual: $releaseTag"
           }
 
-          if ($sourceBranch -eq 'master') {
+          $isMasterBranch = $sourceBranch -eq 'master'
+
+          if ($isMasterBranch) {
             $publishEnv = 'publish-prod'
           }
           else {
             $publishEnv = 'publish-test'
           }
 
-          if ($eventName -eq 'push' -and $githubRef.StartsWith('refs/tags/v')) {
+          if ($isTagPush) {
             $publishNuget = $true
           }
           else {
@@ -104,38 +121,16 @@ jobs:
           }
 
           $dryRun = $false
-          if ($eventName -eq 'workflow_dispatch') {
+          if ($isWorkflowDispatch) {
             $dryRun = Parse-BoolOrDefault '${{ github.event.inputs.dry_run_nuget }}' $true
           }
 
-          if ($publishEnv -ne 'publish-prod') {
+          if (-not $isMasterBranch) {
             $dryRun = $true
           }
 
           if (-not $publishNuget) {
             $dryRun = $true
-          }
-
-          if ($eventName -eq 'workflow_dispatch' -and $sourceBranch -eq 'master' -and -not $dryRun) {
-            git fetch --tags --force origin
-            git show-ref --tags --verify --quiet "refs/tags/$releaseTag"
-            $tagExists = $LASTEXITCODE -eq 0
-
-            if ($tagExists) {
-              $existingTagCommit = (git rev-list -n 1 "$releaseTag").Trim()
-              if ($existingTagCommit -ne $runSha) {
-                throw "Tag '$releaseTag' already exists at $existingTagCommit (expected $runSha)."
-              }
-
-              Write-Host "::notice::Tag $releaseTag already exists at $runSha"
-            }
-            else {
-              git tag "$releaseTag" "$runSha"
-              git push origin "refs/tags/$releaseTag"
-              Write-Host "::notice::Created tag $releaseTag at $runSha"
-            }
-
-            $buildRef = $releaseTag
           }
 
           "release_tag=$releaseTag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
@@ -539,7 +534,7 @@ jobs:
       - sign_windows
     if: |
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
-      (github.event_name == 'workflow_dispatch' && startsWith(github.event.inputs.tag, 'v'))
+      (github.event_name == 'workflow_dispatch')
 
     steps:
       - name: Checkout
@@ -589,7 +584,7 @@ jobs:
       - sign_windows
     if: |
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
-      (github.event_name == 'workflow_dispatch' && startsWith(github.event.inputs.tag, 'v'))
+      (github.event_name == 'workflow_dispatch')
 
     steps:
       - name: Checkout
