@@ -8,7 +8,7 @@ use serde_json::{Map, Value};
 
 use crate::Resource;
 use crate::file::FileFormat;
-use crate::file::{load_string_from_file, save_string_to_file};
+use crate::file::load_string_from_file;
 use std::error::Error;
 
 pub(crate) struct JsonFileFormat {}
@@ -74,11 +74,6 @@ impl FileFormat for JsonFileFormat {
         }
 
         json_to_string_pretty(&root_map)
-    }
-
-    fn write_to_file(&self, filename: &str, resources: &[Resource]) {
-        let text = self.write_to_str(resources);
-        save_string_to_file(filename, text.as_str());
     }
 }
 

@@ -1,6 +1,6 @@
 [package]
 name = "cirup_core"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["Marc-André Moreau <marcandre.moreau@gmail.com>"]
 edition = "2024"
 
@@ -38,7 +38,7 @@ features = ["rt"]
 optional = true
 
 [dependencies.turso]
-version = "0.5.0-pre.14"
+version = "0.5.0"
 optional = true
 
 [dependencies.libsql]
