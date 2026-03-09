@@ -1,7 +1,5 @@
 use regex::Regex;
 use std::fmt;
-use std::fs;
-use std::io::prelude::*;
 
 use crate::Resource;
 use crate::file::FileFormat;
@@ -41,6 +39,7 @@ impl FileFormat for RestextFileFormat {
 
     fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<dyn Error>> {
         let mut resources: Vec<Resource> = Vec::new();
+        let text = text.strip_prefix('\u{feff}').unwrap_or(text);
 
         for line in text.lines() {
             if REGEX_RESTEXT.is_match(line) {
@@ -75,15 +74,6 @@ impl FileFormat for RestextFileFormat {
 
         output
     }
-
-    fn write_to_file(&self, filename: &str, resources: &[Resource]) {
-        let bom: [u8; 3] = [0xEF, 0xBB, 0xBF];
-        let text = self.write_to_str(resources);
-        let mut file = fs::File::create(filename).expect("failed to create restext file");
-        file.write_all(&bom).expect("failed to write UTF-8 BOM");
-        file.write_all(text.as_bytes())
-            .expect("failed to write restext content");
-    }
 }
 
 #[test]
@@ -110,6 +100,22 @@ fn test_restext_parse() {
     let resource = &resources[2];
     assert_eq!(resource.name, "lblDogs");
     assert_eq!(resource.value, "Who let the dogs out?");
+}
+
+#[test]
+fn test_restext_parse_with_utf8_bom() {
+    let text = "\u{feff}lblBoat=I'm on a boat.\r\n";
+
+    let file_format = RestextFileFormat {};
+
+    let resources = match file_format.parse_from_str(text) {
+        Ok(resources) => resources,
+        Err(e) => panic!("restext parse with bom failed: {}", e),
+    };
+
+    let resource = &resources[0];
+    assert_eq!(resource.name, "lblBoat");
+    assert_eq!(resource.value, "I'm on a boat.");
 }
 
 #[test]

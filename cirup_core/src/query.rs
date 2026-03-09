@@ -3,7 +3,7 @@
 use prettytable::{Cell, Row, Table};
 
 use crate::config::{QueryBackendKind, QueryConfig};
-use crate::file::save_resource_file;
+use crate::file::{OutputEncoding, save_resource_file, save_resource_file_with_encoding};
 use crate::query_backend::{QueryBackend, build_backend};
 
 use crate::{Resource, Triple};
@@ -291,6 +291,16 @@ impl CirupQuery {
 
         if let Some(out_file) = out_file {
             save_resource_file(out_file, &resources, touch);
+        } else {
+            print_resources_pretty(&resources);
+        }
+    }
+
+    pub fn run_interactive_with_encoding(&self, out_file: Option<&str>, touch: bool, output_encoding: OutputEncoding) {
+        let resources = self.run();
+
+        if let Some(out_file) = out_file {
+            save_resource_file_with_encoding(out_file, &resources, touch, output_encoding);
         } else {
             print_resources_pretty(&resources);
         }

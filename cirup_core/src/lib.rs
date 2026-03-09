@@ -29,6 +29,7 @@ mod restext;
 mod resx;
 
 mod file;
+pub use crate::file::OutputEncoding;
 mod query_backend;
 
 pub mod query;

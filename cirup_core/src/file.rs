@@ -1,6 +1,5 @@
 use std::fs;
 use std::io::Read;
-use std::io::prelude::*;
 use std::path::Path;
 
 use std::collections::HashMap;
@@ -16,6 +15,13 @@ use std::error::Error;
 
 const UTF8_BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
 
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Default)]
+pub enum OutputEncoding {
+    #[default]
+    Utf8NoBom,
+    Utf8Bom,
+}
+
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub(crate) enum FormatType {
     Unknown,
@@ -29,7 +35,6 @@ pub(crate) trait FileFormat {
     fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<dyn Error>>;
     fn parse_from_file(&self, filename: &str) -> Result<Vec<Resource>, Box<dyn Error>>;
     fn write_to_str(&self, resources: &[Resource]) -> String;
-    fn write_to_file(&self, filename: &str, resources: &[Resource]);
 }
 
 pub(crate) fn get_format_type_from_extension(extension: &str) -> FormatType {
@@ -51,11 +56,6 @@ pub(crate) fn load_string_from_file(filename: &str) -> Result<String, Box<dyn Er
     Ok(text)
 }
 
-pub(crate) fn save_string_to_file(filename: &str, text: &str) {
-    let mut file = fs::File::create(filename).expect("failed to create output file");
-    file.write_all(text.as_bytes()).expect("failed to write output file");
-}
-
 fn sha256_hash(bytes: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
@@ -74,23 +74,38 @@ fn should_write_output(output_hash: [u8; 32], existing_bytes: Option<&[u8]>, tou
     output_hash != sha256_hash(existing_bytes)
 }
 
-fn output_bytes_for_format(format_type: FormatType, resources: &[Resource]) -> Vec<u8> {
-    match format_type {
-        FormatType::Json => {
-            let file_format = JsonFileFormat {};
-            file_format.write_to_str(resources).into_bytes()
-        }
-        FormatType::Resx => {
-            let file_format = ResxFileFormat {};
-            file_format.write_to_str(resources).into_bytes()
-        }
-        FormatType::Restext => {
-            let file_format = RestextFileFormat {};
-            let text = file_format.write_to_str(resources);
+fn encode_utf8(text: &str, output_encoding: OutputEncoding) -> Vec<u8> {
+    match output_encoding {
+        OutputEncoding::Utf8NoBom => text.as_bytes().to_vec(),
+        OutputEncoding::Utf8Bom => {
             let mut output = Vec::with_capacity(UTF8_BOM.len() + text.len());
             output.extend_from_slice(&UTF8_BOM);
             output.extend_from_slice(text.as_bytes());
             output
+        }
+    }
+}
+
+fn output_bytes_for_format(
+    format_type: FormatType,
+    resources: &[Resource],
+    output_encoding: OutputEncoding,
+) -> Vec<u8> {
+    match format_type {
+        FormatType::Json => {
+            let file_format = JsonFileFormat {};
+            let text = file_format.write_to_str(resources);
+            encode_utf8(&text, output_encoding)
+        }
+        FormatType::Resx => {
+            let file_format = ResxFileFormat {};
+            let text = file_format.write_to_str(resources);
+            encode_utf8(&text, output_encoding)
+        }
+        FormatType::Restext => {
+            let file_format = RestextFileFormat {};
+            let text = file_format.write_to_str(resources);
+            encode_utf8(&text, output_encoding)
         }
         FormatType::Unknown => Vec::new(),
     }
@@ -139,6 +154,15 @@ pub(crate) fn load_resource_file(filename: &str) -> Result<Vec<Resource>, Box<dy
 }
 
 pub(crate) fn save_resource_file(filename: &str, resources: &[Resource], touch: bool) {
+    save_resource_file_with_encoding(filename, resources, touch, OutputEncoding::Utf8NoBom);
+}
+
+pub(crate) fn save_resource_file_with_encoding(
+    filename: &str,
+    resources: &[Resource],
+    touch: bool,
+    output_encoding: OutputEncoding,
+) {
     let path = Path::new(filename);
     let extension = path
         .extension()
@@ -150,26 +174,12 @@ pub(crate) fn save_resource_file(filename: &str, resources: &[Resource], touch: 
         return;
     }
 
-    let output_bytes = output_bytes_for_format(format_type, resources);
+    let output_bytes = output_bytes_for_format(format_type, resources, output_encoding);
     let output_hash = sha256_hash(&output_bytes);
     let existing_bytes = fs::read(filename).ok();
 
     if should_write_output(output_hash, existing_bytes.as_deref(), touch) {
-        match format_type {
-            FormatType::Json => {
-                let file_format = JsonFileFormat {};
-                file_format.write_to_file(filename, resources)
-            }
-            FormatType::Resx => {
-                let file_format = ResxFileFormat {};
-                file_format.write_to_file(filename, resources)
-            }
-            FormatType::Restext => {
-                let file_format = RestextFileFormat {};
-                file_format.write_to_file(filename, resources)
-            }
-            FormatType::Unknown => {}
-        }
+        fs::write(filename, output_bytes).expect("failed to write output file");
     }
 }
 
@@ -247,9 +257,16 @@ fn should_write_when_touch_is_true_even_if_hashes_match() {
 }
 
 #[test]
-fn restext_output_bytes_include_utf8_bom() {
+fn restext_output_bytes_do_not_include_utf8_bom() {
     let resources = vec![Resource::new("hello", "world")];
-    let output = output_bytes_for_format(FormatType::Restext, &resources);
+    let output = output_bytes_for_format(FormatType::Restext, &resources, OutputEncoding::Utf8NoBom);
+    assert!(!output.starts_with(&UTF8_BOM));
+}
+
+#[test]
+fn restext_output_bytes_include_utf8_bom_when_configured() {
+    let resources = vec![Resource::new("hello", "world")];
+    let output = output_bytes_for_format(FormatType::Restext, &resources, OutputEncoding::Utf8Bom);
     assert!(output.starts_with(&UTF8_BOM));
 }
 
