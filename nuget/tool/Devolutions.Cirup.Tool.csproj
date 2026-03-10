@@ -40,23 +40,23 @@
 
     <None Include="$(CirupNugetStagingDir)\tools\cirup\linux-x64\cirup"
           Pack="true"
-          PackagePath="tools\net8.0\any\native\linux-x64\cirup"
+          PackagePath="tools\net8.0\any\native\linux-x64\"
           Visible="false"
           Condition="Exists('$(CirupNugetStagingDir)\tools\cirup\linux-x64\cirup')" />
     <None Include="$(CirupNugetStagingDir)\tools\cirup\linux-arm64\cirup"
           Pack="true"
-          PackagePath="tools\net8.0\any\native\linux-arm64\cirup"
+          PackagePath="tools\net8.0\any\native\linux-arm64\"
           Visible="false"
           Condition="Exists('$(CirupNugetStagingDir)\tools\cirup\linux-arm64\cirup')" />
 
     <None Include="$(CirupNugetStagingDir)\tools\cirup\osx-x64\cirup"
           Pack="true"
-          PackagePath="tools\net8.0\any\native\osx-x64\cirup"
+          PackagePath="tools\net8.0\any\native\osx-x64\"
           Visible="false"
           Condition="Exists('$(CirupNugetStagingDir)\tools\cirup\osx-x64\cirup')" />
     <None Include="$(CirupNugetStagingDir)\tools\cirup\osx-arm64\cirup"
           Pack="true"
-          PackagePath="tools\net8.0\any\native\osx-arm64\cirup"
+          PackagePath="tools\net8.0\any\native\osx-arm64\"
           Visible="false"
           Condition="Exists('$(CirupNugetStagingDir)\tools\cirup\osx-arm64\cirup')" />
   </ItemGroup>
