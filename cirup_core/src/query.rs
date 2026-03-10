@@ -5,7 +5,9 @@ use std::io;
 use prettytable::{Cell, Row, Table};
 
 use crate::config::{QueryBackendKind, QueryConfig};
-use crate::file::{OutputEncoding, save_resource_file, save_resource_file_with_encoding};
+use crate::file::{
+    OutputEncoding, save_resource_file, save_resource_file_with_encoding, would_save_resource_file_with_encoding,
+};
 use crate::query_backend::{QueryBackend, build_backend};
 
 use crate::{Resource, Triple};
@@ -22,12 +24,26 @@ pub enum QueryOutputFormat {
 pub struct QueryRunOptions {
     pub output_format: QueryOutputFormat,
     pub count_only: bool,
+    pub dry_run: bool,
+    pub check: bool,
+    pub summary: bool,
     pub key_prefixes: Vec<String>,
     pub key_contains: Vec<String>,
     pub limit: Option<usize>,
+    pub operation_name: Option<String>,
+    pub input_files: Vec<String>,
+    pub output_file: Option<String>,
 }
 
 impl QueryRunOptions {
+    #[must_use]
+    pub fn with_context(mut self, operation_name: &str, input_files: &[&str], output_file: Option<&str>) -> Self {
+        self.operation_name = Some(operation_name.to_owned());
+        self.input_files = input_files.iter().map(|value| (*value).to_owned()).collect();
+        self.output_file = output_file.map(str::to_owned);
+        self
+    }
+
     fn matches_name(&self, name: &str) -> bool {
         let prefix_match =
             self.key_prefixes.is_empty() || self.key_prefixes.iter().any(|prefix| name.starts_with(prefix));
@@ -42,7 +58,72 @@ impl QueryRunOptions {
             return Err(io::Error::other("--count-only cannot be combined with an output file"));
         }
 
+        if self.count_only && self.summary {
+            return Err(io::Error::other("--count-only cannot be combined with --summary"));
+        }
+
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct QueryExecutionCounts {
+    matched_count: usize,
+    filtered_count: usize,
+    output_count: usize,
+    truncated: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct QueryExecutionReport {
+    pub operation: Option<String>,
+    pub result_kind: String,
+    pub input_files: Vec<String>,
+    pub output_file: Option<String>,
+    pub matched_count: usize,
+    pub filtered_count: usize,
+    pub output_count: usize,
+    pub truncated: bool,
+    pub dry_run: bool,
+    pub check: bool,
+    pub would_write: bool,
+    pub wrote_output: bool,
+    pub change_detected: bool,
+}
+
+impl QueryExecutionReport {
+    fn from_options(
+        options: &QueryRunOptions,
+        result_kind: &str,
+        counts: QueryExecutionCounts,
+        would_write: bool,
+        wrote_output: bool,
+    ) -> Self {
+        let change_detected = if options.output_file.is_some() {
+            would_write
+        } else {
+            counts.output_count > 0
+        };
+
+        Self {
+            operation: options.operation_name.clone(),
+            result_kind: result_kind.to_owned(),
+            input_files: options.input_files.clone(),
+            output_file: options.output_file.clone(),
+            matched_count: counts.matched_count,
+            filtered_count: counts.filtered_count,
+            output_count: counts.output_count,
+            truncated: counts.truncated,
+            dry_run: options.dry_run,
+            check: options.check,
+            would_write,
+            wrote_output,
+            change_detected,
+        }
+    }
+
+    pub fn indicates_change(&self) -> bool {
+        self.change_detected
     }
 }
 
@@ -120,24 +201,89 @@ fn render_count(count: usize) -> String {
     format!("{count}\n")
 }
 
-fn filter_resources(mut resources: Vec<Resource>, options: &QueryRunOptions) -> Vec<Resource> {
+fn report_to_table(report: &QueryExecutionReport) -> String {
+    let mut table: Table = Table::new();
+
+    table.add_row(row!["field", "value"]);
+
+    let rows = [
+        ("operation", report.operation.as_deref().unwrap_or_default().to_owned()),
+        ("result_kind", report.result_kind.clone()),
+        ("input_files", report.input_files.join(",")),
+        ("output_file", report.output_file.clone().unwrap_or_default()),
+        ("matched_count", report.matched_count.to_string()),
+        ("filtered_count", report.filtered_count.to_string()),
+        ("output_count", report.output_count.to_string()),
+        ("truncated", report.truncated.to_string()),
+        ("dry_run", report.dry_run.to_string()),
+        ("check", report.check.to_string()),
+        ("would_write", report.would_write.to_string()),
+        ("wrote_output", report.wrote_output.to_string()),
+        ("change_detected", report.change_detected.to_string()),
+    ];
+
+    for (field, value) in rows {
+        let mut row = Row::empty();
+        row.add_cell(Cell::new(field));
+        row.add_cell(Cell::new(value.as_str()));
+        table.add_row(row);
+    }
+
+    ensure_trailing_newline(table.to_string())
+}
+
+fn render_report(report: &QueryExecutionReport, output_format: QueryOutputFormat) -> String {
+    match output_format {
+        QueryOutputFormat::Table => report_to_table(report),
+        QueryOutputFormat::Json => ensure_trailing_newline(
+            serde_json::to_string(report).expect("failed to serialize execution report to JSON"),
+        ),
+        QueryOutputFormat::Jsonl => render_jsonl(std::slice::from_ref(report)),
+    }
+}
+
+fn filter_resources(mut resources: Vec<Resource>, options: &QueryRunOptions) -> (QueryExecutionCounts, Vec<Resource>) {
+    let matched_count = resources.len();
     resources.retain(|resource| options.matches_name(&resource.name));
+    let filtered_count = resources.len();
+    let mut truncated = false;
 
     if let Some(limit) = options.limit {
+        truncated = filtered_count > limit;
         resources.truncate(limit);
     }
 
-    resources
+    (
+        QueryExecutionCounts {
+            matched_count,
+            filtered_count,
+            output_count: resources.len(),
+            truncated,
+        },
+        resources,
+    )
 }
 
-fn filter_triples(mut triples: Vec<Triple>, options: &QueryRunOptions) -> Vec<Triple> {
+fn filter_triples(mut triples: Vec<Triple>, options: &QueryRunOptions) -> (QueryExecutionCounts, Vec<Triple>) {
+    let matched_count = triples.len();
     triples.retain(|triple| options.matches_name(&triple.name));
+    let filtered_count = triples.len();
+    let mut truncated = false;
 
     if let Some(limit) = options.limit {
+        truncated = filtered_count > limit;
         triples.truncate(limit);
     }
 
-    triples
+    (
+        QueryExecutionCounts {
+            matched_count,
+            filtered_count,
+            output_count: triples.len(),
+            truncated,
+        },
+        triples,
+    )
 }
 
 #[allow(clippy::print_stdout)]
@@ -403,11 +549,13 @@ impl CirupQuery {
     }
 
     pub fn run_with_options(&self, options: &QueryRunOptions) -> Vec<Resource> {
-        filter_resources(self.run(), options)
+        let (_, resources) = filter_resources(self.run(), options);
+        resources
     }
 
     pub fn run_triple_with_options(&self, options: &QueryRunOptions) -> Vec<Triple> {
-        filter_triples(self.run_triple(), options)
+        let (_, triples) = filter_triples(self.run_triple(), options);
+        triples
     }
 
     pub fn run_interactive(&self, out_file: Option<&str>, touch: bool) {
@@ -437,23 +585,48 @@ impl CirupQuery {
         touch: bool,
         output_encoding: OutputEncoding,
         options: &QueryRunOptions,
-    ) -> Result<(), io::Error> {
+    ) -> Result<QueryExecutionReport, io::Error> {
         options.validate_for_output(out_file)?;
 
-        let resources = self.run_with_options(options);
+        let (counts, resources) = filter_resources(self.run(), options);
+        let would_write = out_file
+            .map(|path| would_save_resource_file_with_encoding(path, &resources, touch, output_encoding))
+            .unwrap_or(false);
+        let mut wrote_output = false;
+        let report = QueryExecutionReport::from_options(options, "resource", counts, would_write, false);
 
         if options.count_only {
-            print!("{}", render_count(resources.len()));
-            return Ok(());
+            print!("{}", render_count(counts.output_count));
+            return Ok(report);
+        }
+
+        if options.check {
+            if options.summary {
+                print!("{}", render_report(&report, options.output_format));
+            }
+            return Ok(report);
         }
 
         if let Some(out_file) = out_file {
-            save_resource_file_with_encoding(out_file, &resources, touch, output_encoding);
-        } else {
+            if options.dry_run {
+                if !options.summary {
+                    print!("{}", render_resources(&resources, options.output_format));
+                }
+            } else {
+                save_resource_file_with_encoding(out_file, &resources, touch, output_encoding);
+                wrote_output = would_write;
+            }
+        } else if !options.summary {
             print!("{}", render_resources(&resources, options.output_format));
         }
 
-        Ok(())
+        let report = QueryExecutionReport::from_options(options, "resource", counts, would_write, wrote_output);
+
+        if options.summary {
+            print!("{}", render_report(&report, options.output_format));
+        }
+
+        Ok(report)
     }
 
     pub fn run_triple_interactive(&self) {
@@ -462,18 +635,36 @@ impl CirupQuery {
     }
 
     #[allow(clippy::print_stdout)]
-    pub fn run_triple_interactive_with_options(&self, options: &QueryRunOptions) -> Result<(), io::Error> {
+    pub fn run_triple_interactive_with_options(
+        &self,
+        options: &QueryRunOptions,
+    ) -> Result<QueryExecutionReport, io::Error> {
         options.validate_for_output(None)?;
 
-        let triples = self.run_triple_with_options(options);
+        let (counts, triples) = filter_triples(self.run_triple(), options);
+        let report = QueryExecutionReport::from_options(options, "triple", counts, false, false);
 
         if options.count_only {
-            print!("{}", render_count(triples.len()));
-            return Ok(());
+            print!("{}", render_count(counts.output_count));
+            return Ok(report);
         }
 
-        print!("{}", render_triples(&triples, options.output_format));
-        Ok(())
+        if options.check {
+            if options.summary {
+                print!("{}", render_report(&report, options.output_format));
+            }
+            return Ok(report);
+        }
+
+        if !options.summary {
+            print!("{}", render_triples(&triples, options.output_format));
+        }
+
+        if options.summary {
+            print!("{}", render_report(&report, options.output_format));
+        }
+
+        Ok(report)
     }
 }
 
@@ -619,4 +810,58 @@ fn test_count_only_rejects_output_file() {
         .validate_for_output(Some("out.json"))
         .expect_err("expected validation error");
     assert_eq!(error.to_string(), "--count-only cannot be combined with an output file");
+}
+
+#[test]
+fn test_summary_rejects_count_only() {
+    let options = QueryRunOptions {
+        count_only: true,
+        summary: true,
+        ..QueryRunOptions::default()
+    };
+
+    let error = options
+        .validate_for_output(None)
+        .expect_err("expected validation error");
+    assert_eq!(error.to_string(), "--count-only cannot be combined with --summary");
+}
+
+#[test]
+fn test_report_detects_change_for_stdout_results() {
+    let report = QueryExecutionReport::from_options(
+        &QueryRunOptions::default().with_context("file-diff", &["a.json", "b.json"], None),
+        "resource",
+        QueryExecutionCounts {
+            matched_count: 3,
+            filtered_count: 2,
+            output_count: 2,
+            truncated: false,
+        },
+        false,
+        false,
+    );
+
+    assert!(report.indicates_change());
+}
+
+#[test]
+fn test_report_renders_as_json_summary() {
+    let report = QueryExecutionReport::from_options(
+        &QueryRunOptions::default().with_context("file-sort", &["a.json"], Some("a.json")),
+        "resource",
+        QueryExecutionCounts {
+            matched_count: 4,
+            filtered_count: 4,
+            output_count: 4,
+            truncated: false,
+        },
+        true,
+        false,
+    );
+
+    let output = render_report(&report, QueryOutputFormat::Json);
+
+    assert!(output.contains("\"operation\":\"file-sort\""));
+    assert!(output.contains("\"would_write\":true"));
+    assert!(output.ends_with('\n'));
 }

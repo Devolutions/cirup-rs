@@ -32,6 +32,9 @@ cirup --help
 ## Global options
 
 - `--output-format <jsonl|json|table>`: control stdout format. Default is `jsonl`.
+- `--dry-run`: compute results without writing output files. If a command normally writes to a file, the result is rendered to stdout instead.
+- `--check`: imply `--dry-run` and exit with code `2` when the command would produce changes.
+- `--summary`: print a structured execution summary instead of full result rows. Combine it with `--dry-run` for inspect-only workflows.
 - `--count-only`: print only the number of matching results to stdout.
 - `--key-prefix <prefix>`: keep only results whose key starts with the prefix. Repeatable.
 - `--key-contains <text>`: keep only results whose key contains the text. Repeatable.
@@ -44,6 +47,8 @@ cirup --help
 - `--output-encoding <utf8-no-bom|utf8-bom|utf8>`: control output file encoding. `utf8` behaves like `utf8-no-bom`.
 
 By default, cirup writes JSONL to stdout, logs at `warn` level, and avoids rewriting output files when content has not changed.
+
+`--summary` emits compact metadata such as counts, write intent, and whether output would be truncated. `--check` is intended for automation and returns exit code `2` when a command would produce changes.
 
 ## Common operations
 
@@ -63,6 +68,12 @@ Write the printed content to a file:
 
 ```bash
 cirup file-print input.resx output.json
+```
+
+Preview the same operation without writing the output file:
+
+```bash
+cirup --dry-run file-print input.resx output.json
 ```
 
 ### Convert between formats
@@ -98,6 +109,12 @@ Count missing keys without writing the full result set:
 
 ```bash
 cirup --count-only file-diff file1.resx file2.resx
+```
+
+Ask only whether differences exist:
+
+```bash
+cirup --check file-diff file1.resx file2.resx
 ```
 
 Write diff to file:
@@ -148,6 +165,12 @@ Limit stdout to a subset of keys:
 
 ```bash
 cirup --key-prefix lbl --limit 25 diff-with-base old.resx new.resx base.resx
+```
+
+Emit a structured summary for an in-place sort without modifying the file:
+
+```bash
+cirup --dry-run --summary file-sort strings.json
 ```
 
 ## Output file touch behavior

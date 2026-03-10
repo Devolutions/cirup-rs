@@ -106,6 +106,15 @@ struct Cli {
     )]
     output_format: CliOutputFormat,
 
+    #[arg(long = "dry-run", global = true, action = ArgAction::SetTrue, help = "compute results without writing output files")]
+    dry_run: bool,
+
+    #[arg(long = "check", global = true, action = ArgAction::SetTrue, help = "exit with code 2 if the command would produce changes; implies --dry-run")]
+    check: bool,
+
+    #[arg(long = "summary", global = true, action = ArgAction::SetTrue, help = "print a structured execution summary instead of full result rows")]
+    summary: bool,
+
     #[arg(long = "count-only", global = true, action = ArgAction::SetTrue, help = "print only the number of matching results to stdout")]
     count_only: bool,
 
@@ -191,150 +200,97 @@ fn query_options(cli: &Cli) -> query::QueryRunOptions {
     query::QueryRunOptions {
         output_format: cli.output_format.into(),
         count_only: cli.count_only,
+        dry_run: cli.dry_run || cli.check,
+        check: cli.check,
+        summary: cli.summary,
         key_prefixes: cli.key_prefix.clone(),
         key_contains: cli.key_contains.clone(),
         limit: cli.limit,
+        operation_name: None,
+        input_files: Vec::new(),
+        output_file: None,
     }
 }
 
-fn print(
-    input: &str,
-    out_file: Option<&str>,
-    touch: bool,
-    output_encoding: OutputEncoding,
-    options: &query::QueryRunOptions,
-) -> Result<(), Box<dyn Error>> {
-    let query = query::query_print(input);
-    query.run_interactive_with_options(out_file, touch, output_encoding, options)?;
-    Ok(())
-}
-
-fn diff(
-    file_one: &str,
-    file_two: &str,
-    out_file: Option<&str>,
-    touch: bool,
-    output_encoding: OutputEncoding,
-    options: &query::QueryRunOptions,
-) -> Result<(), Box<dyn Error>> {
-    let query = query::query_diff(file_one, file_two);
-    query.run_interactive_with_options(out_file, touch, output_encoding, options)?;
-    Ok(())
-}
-
-fn change(
-    file_one: &str,
-    file_two: &str,
-    out_file: Option<&str>,
-    touch: bool,
-    output_encoding: OutputEncoding,
-    options: &query::QueryRunOptions,
-) -> Result<(), Box<dyn Error>> {
-    let query = query::query_change(file_one, file_two);
-    query.run_interactive_with_options(out_file, touch, output_encoding, options)?;
-    Ok(())
-}
-
-fn merge(
-    file_one: &str,
-    file_two: &str,
-    out_file: Option<&str>,
-    touch: bool,
-    output_encoding: OutputEncoding,
-    options: &query::QueryRunOptions,
-) -> Result<(), Box<dyn Error>> {
-    let query = query::query_merge(file_one, file_two);
-    query.run_interactive_with_options(out_file, touch, output_encoding, options)?;
-    Ok(())
-}
-
-fn intersect(
-    file_one: &str,
-    file_two: &str,
-    out_file: Option<&str>,
-    touch: bool,
-    output_encoding: OutputEncoding,
-    options: &query::QueryRunOptions,
-) -> Result<(), Box<dyn Error>> {
-    let query = query::query_intersect(file_one, file_two);
-    query.run_interactive_with_options(out_file, touch, output_encoding, options)?;
-    Ok(())
-}
-
-fn subtract(
-    file_one: &str,
-    file_two: &str,
-    out_file: Option<&str>,
-    touch: bool,
-    output_encoding: OutputEncoding,
-    options: &query::QueryRunOptions,
-) -> Result<(), Box<dyn Error>> {
-    let query = query::query_subtract(file_one, file_two);
-    query.run_interactive_with_options(out_file, touch, output_encoding, options)?;
-    Ok(())
-}
-
-fn convert(
-    file_one: &str,
-    out_file: &str,
-    touch: bool,
-    output_encoding: OutputEncoding,
-    options: &query::QueryRunOptions,
-) -> Result<(), Box<dyn Error>> {
-    let query = query::query_convert(file_one);
-    query.run_interactive_with_options(Some(out_file), touch, output_encoding, options)?;
-    Ok(())
-}
-
-fn sort(
-    file_one: &str,
-    out_file: Option<&str>,
-    touch: bool,
-    output_encoding: OutputEncoding,
-    options: &query::QueryRunOptions,
-) -> Result<(), Box<dyn Error>> {
-    let query = query::query_sort(file_one);
-
-    if out_file.is_some() {
-        query.run_interactive_with_options(out_file, touch, output_encoding, options)?;
-    } else {
-        query.run_interactive_with_options(Some(file_one), touch, output_encoding, options)?;
-    }
-
-    Ok(())
-}
-
-fn diff_with_base(old: &str, new: &str, base: &str, options: &query::QueryRunOptions) -> Result<(), Box<dyn Error>> {
-    let query = query::query_diff_with_base(old, new, base);
-    query.run_triple_interactive_with_options(options)?;
-    Ok(())
-}
-
-fn run(cli: &Cli) -> Result<(), Box<dyn Error>> {
+fn run(cli: &Cli) -> Result<query::QueryExecutionReport, Box<dyn Error>> {
     let output_encoding: OutputEncoding = cli.output_encoding.into();
     let options = query_options(cli);
 
     match &cli.command {
-        Commands::FilePrint { file, output } => print(file, output.as_deref(), cli.touch, output_encoding, &options),
+        Commands::FilePrint { file, output } => {
+            let options = options.with_context("file-print", &[file], output.as_deref());
+            let query = query::query_print(file);
+            query
+                .run_interactive_with_options(output.as_deref(), cli.touch, output_encoding, &options)
+                .map_err(Into::into)
+        }
         Commands::FileDiff { file1, file2, output } => {
-            if cli.show_changes {
-                change(file1, file2, output.as_deref(), cli.touch, output_encoding, &options)
+            let operation_name = if cli.show_changes {
+                "file-diff-changes"
             } else {
-                diff(file1, file2, output.as_deref(), cli.touch, output_encoding, &options)
+                "file-diff"
+            };
+            let options = options.with_context(operation_name, &[file1, file2], output.as_deref());
+            if cli.show_changes {
+                let query = query::query_change(file1, file2);
+                query
+                    .run_interactive_with_options(output.as_deref(), cli.touch, output_encoding, &options)
+                    .map_err(Into::into)
+            } else {
+                let query = query::query_diff(file1, file2);
+                query
+                    .run_interactive_with_options(output.as_deref(), cli.touch, output_encoding, &options)
+                    .map_err(Into::into)
             }
         }
         Commands::FileMerge { file1, file2, output } => {
-            merge(file1, file2, output.as_deref(), cli.touch, output_encoding, &options)
+            let options = options.with_context("file-merge", &[file1, file2], output.as_deref());
+            let query = query::query_merge(file1, file2);
+            query
+                .run_interactive_with_options(output.as_deref(), cli.touch, output_encoding, &options)
+                .map_err(Into::into)
         }
         Commands::FileIntersect { file1, file2, output } => {
-            intersect(file1, file2, output.as_deref(), cli.touch, output_encoding, &options)
+            let options = options.with_context("file-intersect", &[file1, file2], output.as_deref());
+            let query = query::query_intersect(file1, file2);
+            query
+                .run_interactive_with_options(output.as_deref(), cli.touch, output_encoding, &options)
+                .map_err(Into::into)
         }
         Commands::FileSubtract { file1, file2, output } => {
-            subtract(file1, file2, output.as_deref(), cli.touch, output_encoding, &options)
+            let options = options.with_context("file-subtract", &[file1, file2], output.as_deref());
+            let query = query::query_subtract(file1, file2);
+            query
+                .run_interactive_with_options(output.as_deref(), cli.touch, output_encoding, &options)
+                .map_err(Into::into)
         }
-        Commands::FileConvert { file, output } => convert(file, output, cli.touch, output_encoding, &options),
-        Commands::FileSort { file, output } => sort(file, output.as_deref(), cli.touch, output_encoding, &options),
-        Commands::DiffWithBase { old, new, base } => diff_with_base(old, new, base, &options),
+        Commands::FileConvert { file, output } => {
+            let options = options.with_context("file-convert", &[file], Some(output));
+            let query = query::query_convert(file);
+            query
+                .run_interactive_with_options(Some(output), cli.touch, output_encoding, &options)
+                .map_err(Into::into)
+        }
+        Commands::FileSort { file, output } => {
+            let target = output.as_deref().or(Some(file.as_str()));
+            let options = options.with_context("file-sort", &[file], target);
+            let query = query::query_sort(file);
+
+            if output.is_some() {
+                query
+                    .run_interactive_with_options(output.as_deref(), cli.touch, output_encoding, &options)
+                    .map_err(Into::into)
+            } else {
+                query
+                    .run_interactive_with_options(Some(file), cli.touch, output_encoding, &options)
+                    .map_err(Into::into)
+            }
+        }
+        Commands::DiffWithBase { old, new, base } => {
+            let options = options.with_context("diff-with-base", &[old, new, base], None);
+            let query = query::query_diff_with_base(old, new, base);
+            query.run_triple_interactive_with_options(&options).map_err(Into::into)
+        }
     }
 }
 
@@ -358,7 +314,13 @@ fn main() -> ExitCode {
     builder.init();
 
     match run(&cli) {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(report) => {
+            if cli.check && report.indicates_change() {
+                ExitCode::from(2)
+            } else {
+                ExitCode::SUCCESS
+            }
+        }
         Err(e) => {
             error!("an unexpected error occured ({})", e);
             ExitCode::FAILURE
@@ -478,5 +440,24 @@ mod tests {
 
         assert!(cli.quiet);
         assert!(cli.count_only);
+    }
+
+    #[test]
+    fn parse_dry_run_check_and_summary() {
+        let cli = Cli::parse_from(["cirup", "--dry-run", "--check", "--summary", "file-sort", "a.json"]);
+
+        assert!(cli.dry_run);
+        assert!(cli.check);
+        assert!(cli.summary);
+    }
+
+    #[test]
+    fn query_options_make_check_imply_dry_run() {
+        let cli = Cli::parse_from(["cirup", "--check", "file-print", "a.json"]);
+        let options = query_options(&cli);
+
+        assert!(options.dry_run);
+        assert!(options.check);
+        assert!(!options.summary);
     }
 }
