@@ -8,6 +8,44 @@ use log::error;
 use cirup_core::{OutputEncoding, query};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, ValueEnum)]
+enum CliOutputFormat {
+    Table,
+    Json,
+    Jsonl,
+}
+
+impl From<CliOutputFormat> for query::QueryOutputFormat {
+    fn from(value: CliOutputFormat) -> Self {
+        match value {
+            CliOutputFormat::Table => query::QueryOutputFormat::Table,
+            CliOutputFormat::Json => query::QueryOutputFormat::Json,
+            CliOutputFormat::Jsonl => query::QueryOutputFormat::Jsonl,
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, ValueEnum)]
+enum CliLogLevel {
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
+}
+
+impl CliLogLevel {
+    fn as_filter(self) -> &'static str {
+        match self {
+            CliLogLevel::Error => "error",
+            CliLogLevel::Warn => "warn",
+            CliLogLevel::Info => "info",
+            CliLogLevel::Debug => "debug",
+            CliLogLevel::Trace => "trace",
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, ValueEnum)]
 enum CliOutputEncoding {
     #[value(name = "utf8-no-bom")]
     Utf8NoBom,
@@ -32,6 +70,18 @@ struct Cli {
     #[arg(short = 'v', long = "verbose", global = true, action = ArgAction::Count, help = "Sets the level of verbosity")]
     verbose: u8,
 
+    #[arg(long = "quiet", global = true, action = ArgAction::SetTrue, conflicts_with_all = ["verbose", "log_level"], help = "only print errors")]
+    quiet: bool,
+
+    #[arg(
+        long = "log-level",
+        global = true,
+        value_enum,
+        conflicts_with = "verbose",
+        help = "set stderr logging level explicitly"
+    )]
+    log_level: Option<CliLogLevel>,
+
     #[arg(short = 'C', long = "show-changes", global = true, action = ArgAction::SetTrue, help = "additionally print keys that have values in [file2] but that do not match the values in [file1]")]
     show_changes: bool,
 
@@ -46,6 +96,31 @@ struct Cli {
         help = "output file encoding: utf8-no-bom (default), utf8-bom, utf8"
     )]
     output_encoding: CliOutputEncoding,
+
+    #[arg(
+        long = "output-format",
+        global = true,
+        value_enum,
+        default_value = "jsonl",
+        help = "stdout output format: jsonl (default), json, table"
+    )]
+    output_format: CliOutputFormat,
+
+    #[arg(long = "count-only", global = true, action = ArgAction::SetTrue, help = "print only the number of matching results to stdout")]
+    count_only: bool,
+
+    #[arg(long = "key-prefix", global = true, action = ArgAction::Append, help = "only keep results whose key starts with the given prefix")]
+    key_prefix: Vec<String>,
+
+    #[arg(long = "key-contains", global = true, action = ArgAction::Append, help = "only keep results whose key contains the given text")]
+    key_contains: Vec<String>,
+
+    #[arg(
+        long = "limit",
+        global = true,
+        help = "limit the number of results written to stdout or output file"
+    )]
+    limit: Option<usize>,
 
     #[command(subcommand)]
     command: Commands,
@@ -112,106 +187,171 @@ enum Commands {
     DiffWithBase { old: String, new: String, base: String },
 }
 
-fn print(input: &str, out_file: Option<&str>, touch: bool, output_encoding: OutputEncoding) {
-    let query = query::query_print(input);
-    query.run_interactive_with_encoding(out_file, touch, output_encoding);
-}
-
-fn diff(file_one: &str, file_two: &str, out_file: Option<&str>, touch: bool, output_encoding: OutputEncoding) {
-    let query = query::query_diff(file_one, file_two);
-    query.run_interactive_with_encoding(out_file, touch, output_encoding);
-}
-
-fn change(file_one: &str, file_two: &str, out_file: Option<&str>, touch: bool, output_encoding: OutputEncoding) {
-    let query = query::query_change(file_one, file_two);
-    query.run_interactive_with_encoding(out_file, touch, output_encoding);
-}
-
-fn merge(file_one: &str, file_two: &str, out_file: Option<&str>, touch: bool, output_encoding: OutputEncoding) {
-    let query = query::query_merge(file_one, file_two);
-    query.run_interactive_with_encoding(out_file, touch, output_encoding);
-}
-
-fn intersect(file_one: &str, file_two: &str, out_file: Option<&str>, touch: bool, output_encoding: OutputEncoding) {
-    let query = query::query_intersect(file_one, file_two);
-    query.run_interactive_with_encoding(out_file, touch, output_encoding);
-}
-
-fn subtract(file_one: &str, file_two: &str, out_file: Option<&str>, touch: bool, output_encoding: OutputEncoding) {
-    let query = query::query_subtract(file_one, file_two);
-    query.run_interactive_with_encoding(out_file, touch, output_encoding);
-}
-
-fn convert(file_one: &str, out_file: &str, touch: bool, output_encoding: OutputEncoding) {
-    let query = query::query_convert(file_one);
-    query.run_interactive_with_encoding(Some(out_file), touch, output_encoding);
-}
-
-fn sort(file_one: &str, out_file: Option<&str>, touch: bool, output_encoding: OutputEncoding) {
-    let query = query::query_sort(file_one);
-
-    if out_file.is_some() {
-        query.run_interactive_with_encoding(out_file, touch, output_encoding);
-    } else {
-        query.run_interactive_with_encoding(Some(file_one), touch, output_encoding);
+fn query_options(cli: &Cli) -> query::QueryRunOptions {
+    query::QueryRunOptions {
+        output_format: cli.output_format.into(),
+        count_only: cli.count_only,
+        key_prefixes: cli.key_prefix.clone(),
+        key_contains: cli.key_contains.clone(),
+        limit: cli.limit,
     }
 }
 
-fn diff_with_base(old: &str, new: &str, base: &str) {
+fn print(
+    input: &str,
+    out_file: Option<&str>,
+    touch: bool,
+    output_encoding: OutputEncoding,
+    options: &query::QueryRunOptions,
+) -> Result<(), Box<dyn Error>> {
+    let query = query::query_print(input);
+    query.run_interactive_with_options(out_file, touch, output_encoding, options)?;
+    Ok(())
+}
+
+fn diff(
+    file_one: &str,
+    file_two: &str,
+    out_file: Option<&str>,
+    touch: bool,
+    output_encoding: OutputEncoding,
+    options: &query::QueryRunOptions,
+) -> Result<(), Box<dyn Error>> {
+    let query = query::query_diff(file_one, file_two);
+    query.run_interactive_with_options(out_file, touch, output_encoding, options)?;
+    Ok(())
+}
+
+fn change(
+    file_one: &str,
+    file_two: &str,
+    out_file: Option<&str>,
+    touch: bool,
+    output_encoding: OutputEncoding,
+    options: &query::QueryRunOptions,
+) -> Result<(), Box<dyn Error>> {
+    let query = query::query_change(file_one, file_two);
+    query.run_interactive_with_options(out_file, touch, output_encoding, options)?;
+    Ok(())
+}
+
+fn merge(
+    file_one: &str,
+    file_two: &str,
+    out_file: Option<&str>,
+    touch: bool,
+    output_encoding: OutputEncoding,
+    options: &query::QueryRunOptions,
+) -> Result<(), Box<dyn Error>> {
+    let query = query::query_merge(file_one, file_two);
+    query.run_interactive_with_options(out_file, touch, output_encoding, options)?;
+    Ok(())
+}
+
+fn intersect(
+    file_one: &str,
+    file_two: &str,
+    out_file: Option<&str>,
+    touch: bool,
+    output_encoding: OutputEncoding,
+    options: &query::QueryRunOptions,
+) -> Result<(), Box<dyn Error>> {
+    let query = query::query_intersect(file_one, file_two);
+    query.run_interactive_with_options(out_file, touch, output_encoding, options)?;
+    Ok(())
+}
+
+fn subtract(
+    file_one: &str,
+    file_two: &str,
+    out_file: Option<&str>,
+    touch: bool,
+    output_encoding: OutputEncoding,
+    options: &query::QueryRunOptions,
+) -> Result<(), Box<dyn Error>> {
+    let query = query::query_subtract(file_one, file_two);
+    query.run_interactive_with_options(out_file, touch, output_encoding, options)?;
+    Ok(())
+}
+
+fn convert(
+    file_one: &str,
+    out_file: &str,
+    touch: bool,
+    output_encoding: OutputEncoding,
+    options: &query::QueryRunOptions,
+) -> Result<(), Box<dyn Error>> {
+    let query = query::query_convert(file_one);
+    query.run_interactive_with_options(Some(out_file), touch, output_encoding, options)?;
+    Ok(())
+}
+
+fn sort(
+    file_one: &str,
+    out_file: Option<&str>,
+    touch: bool,
+    output_encoding: OutputEncoding,
+    options: &query::QueryRunOptions,
+) -> Result<(), Box<dyn Error>> {
+    let query = query::query_sort(file_one);
+
+    if out_file.is_some() {
+        query.run_interactive_with_options(out_file, touch, output_encoding, options)?;
+    } else {
+        query.run_interactive_with_options(Some(file_one), touch, output_encoding, options)?;
+    }
+
+    Ok(())
+}
+
+fn diff_with_base(old: &str, new: &str, base: &str, options: &query::QueryRunOptions) -> Result<(), Box<dyn Error>> {
     let query = query::query_diff_with_base(old, new, base);
-    query.run_triple_interactive();
+    query.run_triple_interactive_with_options(options)?;
+    Ok(())
 }
 
 fn run(cli: &Cli) -> Result<(), Box<dyn Error>> {
     let output_encoding: OutputEncoding = cli.output_encoding.into();
+    let options = query_options(cli);
 
     match &cli.command {
-        Commands::FilePrint { file, output } => {
-            print(file, output.as_deref(), cli.touch, output_encoding);
-            Ok(())
-        }
+        Commands::FilePrint { file, output } => print(file, output.as_deref(), cli.touch, output_encoding, &options),
         Commands::FileDiff { file1, file2, output } => {
             if cli.show_changes {
-                change(file1, file2, output.as_deref(), cli.touch, output_encoding);
+                change(file1, file2, output.as_deref(), cli.touch, output_encoding, &options)
             } else {
-                diff(file1, file2, output.as_deref(), cli.touch, output_encoding);
+                diff(file1, file2, output.as_deref(), cli.touch, output_encoding, &options)
             }
-            Ok(())
         }
         Commands::FileMerge { file1, file2, output } => {
-            merge(file1, file2, output.as_deref(), cli.touch, output_encoding);
-            Ok(())
+            merge(file1, file2, output.as_deref(), cli.touch, output_encoding, &options)
         }
         Commands::FileIntersect { file1, file2, output } => {
-            intersect(file1, file2, output.as_deref(), cli.touch, output_encoding);
-            Ok(())
+            intersect(file1, file2, output.as_deref(), cli.touch, output_encoding, &options)
         }
         Commands::FileSubtract { file1, file2, output } => {
-            subtract(file1, file2, output.as_deref(), cli.touch, output_encoding);
-            Ok(())
+            subtract(file1, file2, output.as_deref(), cli.touch, output_encoding, &options)
         }
-        Commands::FileConvert { file, output } => {
-            convert(file, output, cli.touch, output_encoding);
-            Ok(())
-        }
-        Commands::FileSort { file, output } => {
-            sort(file, output.as_deref(), cli.touch, output_encoding);
-            Ok(())
-        }
-        Commands::DiffWithBase { old, new, base } => {
-            diff_with_base(old, new, base);
-            Ok(())
-        }
+        Commands::FileConvert { file, output } => convert(file, output, cli.touch, output_encoding, &options),
+        Commands::FileSort { file, output } => sort(file, output.as_deref(), cli.touch, output_encoding, &options),
+        Commands::DiffWithBase { old, new, base } => diff_with_base(old, new, base, &options),
     }
 }
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
 
-    let min_log_level = match cli.verbose {
-        0 => "info",
-        1 => "debug",
-        _ => "trace",
+    let min_log_level = if cli.quiet {
+        "error"
+    } else if let Some(log_level) = cli.log_level {
+        log_level.as_filter()
+    } else {
+        match cli.verbose {
+            0 => "warn",
+            1 => "info",
+            2 => "debug",
+            _ => "trace",
+        }
     };
 
     let mut builder = Builder::from_env(Env::default().default_filter_or(min_log_level));
@@ -236,6 +376,7 @@ mod tests {
 
         assert!(cli.show_changes);
         assert!(!cli.touch);
+        assert_eq!(cli.output_format, CliOutputFormat::Jsonl);
         match cli.command {
             Commands::FileDiff { file1, file2, output } => {
                 assert_eq!(file1, "a.json");
@@ -266,6 +407,7 @@ mod tests {
 
         assert!(cli.touch);
         assert_eq!(cli.output_encoding, CliOutputEncoding::Utf8NoBom);
+        assert_eq!(cli.output_format, CliOutputFormat::Jsonl);
         match cli.command {
             Commands::FileSort { file, output } => {
                 assert_eq!(file, "a.json");
@@ -296,5 +438,45 @@ mod tests {
             "b.restext",
         ]);
         assert_eq!(utf8.output_encoding, CliOutputEncoding::Utf8);
+    }
+
+    #[test]
+    fn parse_output_format_filters_and_limit() {
+        let cli = Cli::parse_from([
+            "cirup",
+            "--output-format",
+            "table",
+            "--key-prefix",
+            "lbl",
+            "--key-prefix",
+            "msg",
+            "--key-contains",
+            "Hello",
+            "--limit",
+            "10",
+            "file-print",
+            "a.json",
+        ]);
+
+        assert_eq!(cli.output_format, CliOutputFormat::Table);
+        assert_eq!(cli.key_prefix, vec![String::from("lbl"), String::from("msg")]);
+        assert_eq!(cli.key_contains, vec![String::from("Hello")]);
+        assert_eq!(cli.limit, Some(10));
+    }
+
+    #[test]
+    fn parse_quiet_and_count_only() {
+        let cli = Cli::parse_from([
+            "cirup",
+            "--quiet",
+            "--count-only",
+            "diff-with-base",
+            "old.json",
+            "new.json",
+            "base.json",
+        ]);
+
+        assert!(cli.quiet);
+        assert!(cli.count_only);
     }
 }

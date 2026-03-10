@@ -1,5 +1,7 @@
 #![allow(clippy::self_named_module_files)]
 
+use std::io;
+
 use prettytable::{Cell, Row, Table};
 
 use crate::config::{QueryBackendKind, QueryConfig};
@@ -8,11 +10,54 @@ use crate::query_backend::{QueryBackend, build_backend};
 
 use crate::{Resource, Triple};
 
-#[allow(clippy::print_stdout)]
-pub fn print_resources_pretty(resources: &[Resource]) {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum QueryOutputFormat {
+    Table,
+    Json,
+    #[default]
+    Jsonl,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct QueryRunOptions {
+    pub output_format: QueryOutputFormat,
+    pub count_only: bool,
+    pub key_prefixes: Vec<String>,
+    pub key_contains: Vec<String>,
+    pub limit: Option<usize>,
+}
+
+impl QueryRunOptions {
+    fn matches_name(&self, name: &str) -> bool {
+        let prefix_match =
+            self.key_prefixes.is_empty() || self.key_prefixes.iter().any(|prefix| name.starts_with(prefix));
+        let contains_match =
+            self.key_contains.is_empty() || self.key_contains.iter().any(|needle| name.contains(needle));
+
+        prefix_match && contains_match
+    }
+
+    fn validate_for_output(&self, out_file: Option<&str>) -> Result<(), io::Error> {
+        if self.count_only && out_file.is_some() {
+            return Err(io::Error::other("--count-only cannot be combined with an output file"));
+        }
+
+        Ok(())
+    }
+}
+
+fn ensure_trailing_newline(mut text: String) -> String {
+    if !text.ends_with('\n') {
+        text.push('\n');
+    }
+
+    text
+}
+
+fn resources_to_table(resources: &[Resource]) -> String {
     let mut table: Table = Table::new();
 
-    table.add_row(row!["name", "value"]); // table header
+    table.add_row(row!["name", "value"]);
 
     for resource in resources {
         let mut row = Row::empty();
@@ -21,17 +66,88 @@ pub fn print_resources_pretty(resources: &[Resource]) {
         table.add_row(row);
     }
 
-    println!("{}", table);
+    ensure_trailing_newline(table.to_string())
+}
+
+fn triples_to_table(triples: &[Triple]) -> String {
+    let mut table: Table = Table::new();
+
+    table.add_row(row!["name", "value", "base"]);
+
+    for triple in triples {
+        let mut row = Row::empty();
+        row.add_cell(Cell::new(triple.name.as_str()));
+        row.add_cell(Cell::new(triple.value.as_str()));
+        row.add_cell(Cell::new(triple.base.as_str()));
+        table.add_row(row);
+    }
+
+    ensure_trailing_newline(table.to_string())
+}
+
+fn render_jsonl<T: serde::Serialize>(values: &[T]) -> String {
+    let mut output = String::new();
+
+    for value in values {
+        output.push_str(&serde_json::to_string(value).expect("failed to serialize JSONL row"));
+        output.push('\n');
+    }
+
+    output
+}
+
+fn render_resources(resources: &[Resource], output_format: QueryOutputFormat) -> String {
+    match output_format {
+        QueryOutputFormat::Table => resources_to_table(resources),
+        QueryOutputFormat::Json => ensure_trailing_newline(
+            serde_json::to_string(resources).expect("failed to serialize resource list to JSON"),
+        ),
+        QueryOutputFormat::Jsonl => render_jsonl(resources),
+    }
+}
+
+fn render_triples(triples: &[Triple], output_format: QueryOutputFormat) -> String {
+    match output_format {
+        QueryOutputFormat::Table => triples_to_table(triples),
+        QueryOutputFormat::Json => {
+            ensure_trailing_newline(serde_json::to_string(triples).expect("failed to serialize triple list to JSON"))
+        }
+        QueryOutputFormat::Jsonl => render_jsonl(triples),
+    }
+}
+
+fn render_count(count: usize) -> String {
+    format!("{count}\n")
+}
+
+fn filter_resources(mut resources: Vec<Resource>, options: &QueryRunOptions) -> Vec<Resource> {
+    resources.retain(|resource| options.matches_name(&resource.name));
+
+    if let Some(limit) = options.limit {
+        resources.truncate(limit);
+    }
+
+    resources
+}
+
+fn filter_triples(mut triples: Vec<Triple>, options: &QueryRunOptions) -> Vec<Triple> {
+    triples.retain(|triple| options.matches_name(&triple.name));
+
+    if let Some(limit) = options.limit {
+        triples.truncate(limit);
+    }
+
+    triples
+}
+
+#[allow(clippy::print_stdout)]
+pub fn print_resources_pretty(resources: &[Resource]) {
+    print!("{}", resources_to_table(resources));
 }
 
 #[allow(clippy::print_stdout)]
 pub fn print_triples_pretty(triples: &[Triple]) {
-    for triple in triples {
-        println!("name: {}", triple.name);
-        println!("base: {}", triple.base);
-        println!("value: {}", triple.value);
-        println!();
-    }
+    print!("{}", triples_to_table(triples));
 }
 
 fn default_query_backend() -> QueryBackendKind {
@@ -286,6 +402,14 @@ impl CirupQuery {
         self.engine.query_triple(&self.query)
     }
 
+    pub fn run_with_options(&self, options: &QueryRunOptions) -> Vec<Resource> {
+        filter_resources(self.run(), options)
+    }
+
+    pub fn run_triple_with_options(&self, options: &QueryRunOptions) -> Vec<Triple> {
+        filter_triples(self.run_triple(), options)
+    }
+
     pub fn run_interactive(&self, out_file: Option<&str>, touch: bool) {
         let resources = self.run();
 
@@ -306,9 +430,50 @@ impl CirupQuery {
         }
     }
 
+    #[allow(clippy::print_stdout)]
+    pub fn run_interactive_with_options(
+        &self,
+        out_file: Option<&str>,
+        touch: bool,
+        output_encoding: OutputEncoding,
+        options: &QueryRunOptions,
+    ) -> Result<(), io::Error> {
+        options.validate_for_output(out_file)?;
+
+        let resources = self.run_with_options(options);
+
+        if options.count_only {
+            print!("{}", render_count(resources.len()));
+            return Ok(());
+        }
+
+        if let Some(out_file) = out_file {
+            save_resource_file_with_encoding(out_file, &resources, touch, output_encoding);
+        } else {
+            print!("{}", render_resources(&resources, options.output_format));
+        }
+
+        Ok(())
+    }
+
     pub fn run_triple_interactive(&self) {
         let triples = self.run_triple();
         print_triples_pretty(&triples);
+    }
+
+    #[allow(clippy::print_stdout)]
+    pub fn run_triple_interactive_with_options(&self, options: &QueryRunOptions) -> Result<(), io::Error> {
+        options.validate_for_output(None)?;
+
+        let triples = self.run_triple_with_options(options);
+
+        if options.count_only {
+            print!("{}", render_count(triples.len()));
+            return Ok(());
+        }
+
+        print!("{}", render_triples(&triples, options.output_format));
+        Ok(())
     }
 }
 
@@ -406,4 +571,52 @@ fn test_query_turso_remote_env_gated() {
     expected.sort_by(|a, b| a.name.cmp(&b.name).then(a.value.cmp(&b.value)));
 
     assert_eq!(actual, expected);
+}
+
+#[test]
+fn test_query_run_options_filter_and_limit_resources() {
+    let query = query_print_with_backend("test.json", QueryBackendKind::Rusqlite);
+    let options = QueryRunOptions {
+        key_prefixes: vec![String::from("lbl")],
+        key_contains: vec![String::from("Yolo")],
+        limit: Some(1),
+        ..QueryRunOptions::default()
+    };
+
+    let resources = query.run_with_options(&options);
+
+    assert_eq!(resources.len(), 1);
+    assert_eq!(resources[0].name, String::from("lblYolo"));
+}
+
+#[test]
+fn test_render_resources_jsonl() {
+    let resources = vec![Resource::new("hello", "world"), Resource::new("goodbye", "moon")];
+    let output = render_resources(&resources, QueryOutputFormat::Jsonl);
+
+    assert_eq!(
+        output,
+        "{\"name\":\"hello\",\"value\":\"world\"}\n{\"name\":\"goodbye\",\"value\":\"moon\"}\n"
+    );
+}
+
+#[test]
+fn test_render_triples_json() {
+    let triples = vec![Triple::new("hello", "world", "base")];
+    let output = render_triples(&triples, QueryOutputFormat::Json);
+
+    assert_eq!(output, "[{\"name\":\"hello\",\"value\":\"world\",\"base\":\"base\"}]\n");
+}
+
+#[test]
+fn test_count_only_rejects_output_file() {
+    let options = QueryRunOptions {
+        count_only: true,
+        ..QueryRunOptions::default()
+    };
+
+    let error = options
+        .validate_for_output(Some("out.json"))
+        .expect_err("expected validation error");
+    assert_eq!(error.to_string(), "--count-only cannot be combined with an output file");
 }
