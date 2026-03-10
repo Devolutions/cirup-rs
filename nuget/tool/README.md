@@ -1,6 +1,6 @@
 # Devolutions.Cirup.Tool
 
-`Devolutions.Cirup.Tool` is a RID-specific .NET tool package for `cirup`.
+`Devolutions.Cirup.Tool` is a .NET tool package for `cirup`.
 
 ## Install
 
@@ -14,7 +14,7 @@ dotnet tool install -g Devolutions.Cirup.Tool
 cirup --help
 ```
 
-## One-shot run
+## One-shot run (.NET 10+)
 
 ```powershell
 dotnet tool exec Devolutions.Cirup.Tool -- --help
@@ -28,7 +28,7 @@ dnx Devolutions.Cirup.Tool --help
 
 ## Runtime selection
 
-The package uses RID-specific tool packaging. The .NET CLI automatically selects the best package for the current platform.
+The package includes native `cirup` executables for each supported platform and selects the right one at runtime.
 
 Supported RIDs:
 
@@ -39,4 +39,4 @@ Supported RIDs:
 - `osx-x64`
 - `osx-arm64`
 
-An `any` fallback package is also produced. It provides a managed fallback message on unsupported runtimes.
+The managed launcher prints a guidance message on unsupported runtimes.

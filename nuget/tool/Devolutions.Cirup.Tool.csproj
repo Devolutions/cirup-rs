@@ -1,23 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+            <TargetFramework>net8.0</TargetFramework>
+            <Nullable>enable</Nullable>
 
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>cirup</ToolCommandName>
     <PackageId>Devolutions.Cirup.Tool</PackageId>
 
-      <Version Condition="'$(Version)' == ''">0.5.0</Version>
+            <Version Condition="'$(Version)' == ''">0.5.0</Version>
     <Authors>Devolutions</Authors>
-    <Description>RID-specific dotnet tool wrapper around prebuilt cirup native executables.</Description>
+            <Description>Dotnet tool wrapper around prebuilt cirup native executables.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/Devolutions/cirup-rs</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
 
     <NoPackageAnalysis>true</NoPackageAnalysis>
-    <ToolPackageRuntimeIdentifiers>win-x64;win-arm64;linux-x64;linux-arm64;osx-x64;osx-arm64;any</ToolPackageRuntimeIdentifiers>
-    <RuntimeIdentifiers>win-x64;win-arm64;linux-x64;linux-arm64;osx-x64;osx-arm64;any</RuntimeIdentifiers>
     <RollForward>Major</RollForward>
   </PropertyGroup>
 
@@ -30,47 +29,50 @@
 
     <None Include="$(CirupNugetStagingDir)\tools\cirup\win-x64\cirup.exe"
           Pack="true"
-          PackagePath="tools\net10.0\win-x64\cirup.exe"
+          PackagePath="tools\net8.0\any\native\win-x64\cirup.exe"
           Visible="false"
-          Condition="'$(RuntimeIdentifier)' == 'win-x64' and Exists('$(CirupNugetStagingDir)\tools\cirup\win-x64\cirup.exe')" />
+          Condition="Exists('$(CirupNugetStagingDir)\tools\cirup\win-x64\cirup.exe')" />
     <None Include="$(CirupNugetStagingDir)\tools\cirup\win-arm64\cirup.exe"
           Pack="true"
-          PackagePath="tools\net10.0\win-arm64\cirup.exe"
+          PackagePath="tools\net8.0\any\native\win-arm64\cirup.exe"
           Visible="false"
-          Condition="'$(RuntimeIdentifier)' == 'win-arm64' and Exists('$(CirupNugetStagingDir)\tools\cirup\win-arm64\cirup.exe')" />
+          Condition="Exists('$(CirupNugetStagingDir)\tools\cirup\win-arm64\cirup.exe')" />
 
     <None Include="$(CirupNugetStagingDir)\tools\cirup\linux-x64\cirup"
           Pack="true"
-          PackagePath="tools\net10.0\linux-x64\cirup"
+          PackagePath="tools\net8.0\any\native\linux-x64\cirup"
           Visible="false"
-          Condition="'$(RuntimeIdentifier)' == 'linux-x64' and Exists('$(CirupNugetStagingDir)\tools\cirup\linux-x64\cirup')" />
+          Condition="Exists('$(CirupNugetStagingDir)\tools\cirup\linux-x64\cirup')" />
     <None Include="$(CirupNugetStagingDir)\tools\cirup\linux-arm64\cirup"
           Pack="true"
-          PackagePath="tools\net10.0\linux-arm64\cirup"
+          PackagePath="tools\net8.0\any\native\linux-arm64\cirup"
           Visible="false"
-          Condition="'$(RuntimeIdentifier)' == 'linux-arm64' and Exists('$(CirupNugetStagingDir)\tools\cirup\linux-arm64\cirup')" />
+          Condition="Exists('$(CirupNugetStagingDir)\tools\cirup\linux-arm64\cirup')" />
 
     <None Include="$(CirupNugetStagingDir)\tools\cirup\osx-x64\cirup"
           Pack="true"
-          PackagePath="tools\net10.0\osx-x64\cirup"
+          PackagePath="tools\net8.0\any\native\osx-x64\cirup"
           Visible="false"
-          Condition="'$(RuntimeIdentifier)' == 'osx-x64' and Exists('$(CirupNugetStagingDir)\tools\cirup\osx-x64\cirup')" />
+          Condition="Exists('$(CirupNugetStagingDir)\tools\cirup\osx-x64\cirup')" />
     <None Include="$(CirupNugetStagingDir)\tools\cirup\osx-arm64\cirup"
           Pack="true"
-          PackagePath="tools\net10.0\osx-arm64\cirup"
+          PackagePath="tools\net8.0\any\native\osx-arm64\cirup"
           Visible="false"
-          Condition="'$(RuntimeIdentifier)' == 'osx-arm64' and Exists('$(CirupNugetStagingDir)\tools\cirup\osx-arm64\cirup')" />
+          Condition="Exists('$(CirupNugetStagingDir)\tools\cirup\osx-arm64\cirup')" />
   </ItemGroup>
 
   <Target Name="ValidateCirupToolStaging"
-          BeforeTargets="GenerateNuspec"
-          Condition="'$(RuntimeIdentifier)' != '' and '$(RuntimeIdentifier)' != 'any'">
-    <PropertyGroup>
-      <_CirupToolBinaryPath>$(CirupNugetStagingDir)\tools\cirup\$(RuntimeIdentifier)\cirup</_CirupToolBinaryPath>
-      <_CirupToolBinaryPath Condition="'$(RuntimeIdentifier)' == 'win-x64' or '$(RuntimeIdentifier)' == 'win-arm64'">$(CirupNugetStagingDir)\tools\cirup\$(RuntimeIdentifier)\cirup.exe</_CirupToolBinaryPath>
-    </PropertyGroup>
+          BeforeTargets="GenerateNuspec">
+    <ItemGroup>
+      <_CirupToolBinary Include="win-x64|$(CirupNugetStagingDir)\tools\cirup\win-x64\cirup.exe" />
+      <_CirupToolBinary Include="win-arm64|$(CirupNugetStagingDir)\tools\cirup\win-arm64\cirup.exe" />
+      <_CirupToolBinary Include="linux-x64|$(CirupNugetStagingDir)\tools\cirup\linux-x64\cirup" />
+      <_CirupToolBinary Include="linux-arm64|$(CirupNugetStagingDir)\tools\cirup\linux-arm64\cirup" />
+      <_CirupToolBinary Include="osx-x64|$(CirupNugetStagingDir)\tools\cirup\osx-x64\cirup" />
+      <_CirupToolBinary Include="osx-arm64|$(CirupNugetStagingDir)\tools\cirup\osx-arm64\cirup" />
+    </ItemGroup>
 
-    <Error Condition="!Exists('$(_CirupToolBinaryPath)')"
-           Text="Missing staged binary for RuntimeIdentifier '$(RuntimeIdentifier)': $(_CirupToolBinaryPath)" />
+    <Error Condition="!Exists($([System.String]::Copy('%(_CirupToolBinary.Identity)').Split('|')[1]))"
+           Text="Missing staged binary for %(_CirupToolBinary.Identity)." />
   </Target>
 </Project>

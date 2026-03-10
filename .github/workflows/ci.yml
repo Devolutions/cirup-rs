@@ -243,7 +243,7 @@ jobs:
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 8.0.x
 
       - name: Import binaries and pack dotnet tool (dry-run)
         shell: pwsh
@@ -265,3 +265,47 @@ jobs:
           name: devolutions-cirup-tool-nupkg-dry-run
           path: dist/nuget/Devolutions.Cirup.Tool*.nupkg
           if-no-files-found: error
+
+  validate_dotnet_tool_install:
+    name: Validate dotnet tool install (${{ matrix.sdk }})
+    runs-on: windows-latest
+    needs: build_release_artifacts
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk:
+          - 8.0.x
+          - 10.0.x
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download native artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.sdk }}
+
+      - name: Pack and validate dotnet tool
+        shell: pwsh
+        env:
+          CI_RUN_NUMBER: ${{ github.run_number }}
+          SDK_LABEL: ${{ matrix.sdk }}
+        run: |
+          $version = "0.0.0-ci.$env:CI_RUN_NUMBER-$($env:SDK_LABEL.Replace('.x', '').Replace('.', ''))"
+          $stagingRoot = Join-Path $PWD "nuget/staging"
+
+          ./nuget/pack-cirup-dotnet-tool.ps1 `
+            -Version $version `
+            -ArtifactsRoot "dist" `
+            -StagingRoot $stagingRoot `
+            -OutputDir "dist/nuget"
+
+          ./nuget/test-dotnet-tool-install.ps1 `
+            -Version $version `
+            -FeedDir "dist/nuget"

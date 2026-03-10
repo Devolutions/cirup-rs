@@ -400,6 +400,7 @@ jobs:
       - sign_windows
       - pack_nuget
       - pack_dotnet_tool
+      - validate_dotnet_tool_install
 
     steps:
       - name: Download platform zip artifacts
@@ -560,7 +561,7 @@ jobs:
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 8.0.x
 
       - name: Import binaries and pack dotnet tool
         shell: pwsh
@@ -588,6 +589,50 @@ jobs:
           path: dist/nuget/Devolutions.Cirup.Tool*.nupkg
           if-no-files-found: error
 
+  validate_dotnet_tool_install:
+    name: Validate dotnet tool install (${{ matrix.sdk }})
+    runs-on: windows-latest
+    needs:
+      - preflight
+      - pack_dotnet_tool
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk:
+          - 8.0.x
+          - 10.0.x
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download dotnet tool artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: devolutions-cirup-tool-nupkg
+          path: dist
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.sdk }}
+
+      - name: Validate packaged dotnet tool install
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ needs.preflight.outputs.release_tag }}
+        run: |
+          $tag = $env:RELEASE_TAG
+          if (-not $tag.StartsWith('v')) {
+            throw "Release tag must start with 'v'. Actual: $tag"
+          }
+
+          $version = $tag.Substring(1)
+
+          ./nuget/test-dotnet-tool-install.ps1 `
+            -Version $version `
+            -FeedDir "dist"
+
   publish_nuget:
     name: Publish NuGet packages
     runs-on: ubuntu-latest
@@ -595,6 +640,7 @@ jobs:
       - preflight
       - pack_nuget
       - pack_dotnet_tool
+      - validate_dotnet_tool_install
     if: needs.preflight.outputs.publish_nuget == 'true'
     environment: ${{ needs.preflight.outputs.publish_env }}
     permissions:
@@ -639,7 +685,7 @@ jobs:
         if: steps.publish_mode.outputs.dry_run == 'true' || steps.publish_mode.outputs.has_login_user == 'true'
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 8.0.x
 
       - name: NuGet login (OIDC)
         if: steps.publish_mode.outputs.dry_run != 'true' && steps.publish_mode.outputs.has_login_user == 'true'
@@ -648,7 +694,7 @@ jobs:
         with:
           user: ${{ secrets.NUGET_BOT_USERNAME }}
 
-      - name: Publish to NuGet.org (RID first, pointer last)
+      - name: Publish to NuGet.org
         if: steps.publish_mode.outputs.dry_run == 'true' || steps.publish_mode.outputs.has_login_user == 'true'
         shell: pwsh
         env:
@@ -689,33 +735,7 @@ jobs:
             throw 'Missing Devolutions.Cirup.Tool package artifacts.'
           }
 
-          $toolRidPattern = 'Devolutions\.Cirup\.Tool\.(win-x64|win-arm64|linux-x64|linux-arm64|osx-x64|osx-arm64|any)\.'
-          $toolRidPackages = $toolPackages | Where-Object { $_.Name -match $toolRidPattern }
-          $toolPointerPackages = $toolPackages | Where-Object { $_.Name -notmatch $toolRidPattern }
-
-          if (-not $toolRidPackages) {
-            throw 'Missing Devolutions.Cirup.Tool RID package artifacts.'
-          }
-
-          if (-not $toolPointerPackages) {
-            throw 'Missing Devolutions.Cirup.Tool pointer package artifact.'
-          }
-
-          foreach ($package in $toolRidPackages) {
-            $pushArgs = @(
-              'nuget', 'push', "$($package.FullName)",
-              '--api-key', "$apiKey",
-              '--source', "$env:NUGET_SOURCE",
-              '--skip-duplicate', '--no-symbols'
-            )
-
-            Write-Host "dotnet $($pushArgs -join ' ')"
-            if (-not $dryRun) {
-              & dotnet @pushArgs
-            }
-          }
-
-          foreach ($package in $toolPointerPackages) {
+          foreach ($package in $toolPackages) {
             $pushArgs = @(
               'nuget', 'push', "$($package.FullName)",
               '--api-key', "$apiKey",
