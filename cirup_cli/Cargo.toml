@@ -1,6 +1,6 @@
 [package]
 name = "cirup_cli"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["Marc-André Moreau <marcandre.moreau@gmail.com>"]
 edition = "2024"
 

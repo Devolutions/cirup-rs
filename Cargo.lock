@@ -435,7 +435,7 @@ dependencies = [
 
 [[package]]
 name = "cirup_cli"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "cirup_core",
  "clap",
@@ -446,7 +446,7 @@ dependencies = [
 
 [[package]]
 name = "cirup_core"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "dot_json",
  "lazy_static",
