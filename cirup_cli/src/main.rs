@@ -118,11 +118,21 @@ struct Cli {
     #[arg(long = "count-only", global = true, action = ArgAction::SetTrue, help = "print only the number of matching results to stdout")]
     count_only: bool,
 
-    #[arg(long = "key-prefix", global = true, action = ArgAction::Append, help = "only keep results whose key starts with the given prefix")]
-    key_prefix: Vec<String>,
+    #[arg(
+        long = "key-filter",
+        global = true,
+        action = ArgAction::Append,
+        help = "repeatable simple regex-style key filter supporting literals, ^, $, . and .*"
+    )]
+    key_filter: Vec<String>,
 
-    #[arg(long = "key-contains", global = true, action = ArgAction::Append, help = "only keep results whose key contains the given text")]
-    key_contains: Vec<String>,
+    #[arg(
+        long = "value-filter",
+        global = true,
+        action = ArgAction::Append,
+        help = "repeatable simple regex-style value filter supporting literals, ^, $, . and .*"
+    )]
+    value_filter: Vec<String>,
 
     #[arg(
         long = "limit",
@@ -203,8 +213,8 @@ fn query_options(cli: &Cli) -> query::QueryRunOptions {
         dry_run: cli.dry_run || cli.check,
         check: cli.check,
         summary: cli.summary,
-        key_prefixes: cli.key_prefix.clone(),
-        key_contains: cli.key_contains.clone(),
+        key_filters: cli.key_filter.clone(),
+        value_filters: cli.value_filter.clone(),
         limit: cli.limit,
         operation_name: None,
         input_files: Vec::new(),
@@ -403,17 +413,24 @@ mod tests {
     }
 
     #[test]
+    fn parse_log_level_value() {
+        let cli = Cli::parse_from(["cirup", "--log-level", "debug", "file-print", "a.json"]);
+
+        assert_eq!(cli.log_level, Some(CliLogLevel::Debug));
+        assert_eq!(cli.verbose, 0);
+        assert!(!cli.quiet);
+    }
+
+    #[test]
     fn parse_output_format_filters_and_limit() {
         let cli = Cli::parse_from([
             "cirup",
             "--output-format",
             "table",
-            "--key-prefix",
-            "lbl",
-            "--key-prefix",
-            "msg",
-            "--key-contains",
-            "Hello",
+            "--key-filter",
+            "^lbl",
+            "--value-filter",
+            ".*Hello$",
             "--limit",
             "10",
             "file-print",
@@ -421,9 +438,32 @@ mod tests {
         ]);
 
         assert_eq!(cli.output_format, CliOutputFormat::Table);
-        assert_eq!(cli.key_prefix, vec![String::from("lbl"), String::from("msg")]);
-        assert_eq!(cli.key_contains, vec![String::from("Hello")]);
+        assert_eq!(cli.key_filter, vec![String::from("^lbl")]);
+        assert_eq!(cli.value_filter, vec![String::from(".*Hello$")]);
         assert_eq!(cli.limit, Some(10));
+    }
+
+    #[test]
+    fn parse_repeated_key_and_value_filters() {
+        let cli = Cli::parse_from([
+            "cirup",
+            "--key-filter",
+            "^lbl",
+            "--key-filter",
+            ".*Title$",
+            "--value-filter",
+            "^English$",
+            "--value-filter",
+            ".*French.*",
+            "file-print",
+            "a.json",
+        ]);
+
+        assert_eq!(cli.key_filter, vec![String::from("^lbl"), String::from(".*Title$")]);
+        assert_eq!(
+            cli.value_filter,
+            vec![String::from("^English$"), String::from(".*French.*")]
+        );
     }
 
     #[test]
@@ -443,6 +483,48 @@ mod tests {
     }
 
     #[test]
+    fn parse_file_commands_with_outputs() {
+        let convert = Cli::parse_from(["cirup", "file-convert", "a.json", "b.restext"]);
+        match convert.command {
+            Commands::FileConvert { file, output } => {
+                assert_eq!(file, "a.json");
+                assert_eq!(output, "b.restext");
+            }
+            _ => panic!("expected file-convert command"),
+        }
+
+        let merge = Cli::parse_from(["cirup", "file-merge", "a.json", "b.json", "out.json"]);
+        match merge.command {
+            Commands::FileMerge { file1, file2, output } => {
+                assert_eq!(file1, "a.json");
+                assert_eq!(file2, "b.json");
+                assert_eq!(output.as_deref(), Some("out.json"));
+            }
+            _ => panic!("expected file-merge command"),
+        }
+
+        let intersect = Cli::parse_from(["cirup", "file-intersect", "a.json", "b.json", "out.json"]);
+        match intersect.command {
+            Commands::FileIntersect { file1, file2, output } => {
+                assert_eq!(file1, "a.json");
+                assert_eq!(file2, "b.json");
+                assert_eq!(output.as_deref(), Some("out.json"));
+            }
+            _ => panic!("expected file-intersect command"),
+        }
+
+        let subtract = Cli::parse_from(["cirup", "file-subtract", "a.json", "b.json", "out.json"]);
+        match subtract.command {
+            Commands::FileSubtract { file1, file2, output } => {
+                assert_eq!(file1, "a.json");
+                assert_eq!(file2, "b.json");
+                assert_eq!(output.as_deref(), Some("out.json"));
+            }
+            _ => panic!("expected file-subtract command"),
+        }
+    }
+
+    #[test]
     fn parse_dry_run_check_and_summary() {
         let cli = Cli::parse_from(["cirup", "--dry-run", "--check", "--summary", "file-sort", "a.json"]);
 
@@ -459,5 +541,47 @@ mod tests {
         assert!(options.dry_run);
         assert!(options.check);
         assert!(!options.summary);
+    }
+
+    #[test]
+    fn quiet_conflicts_with_verbose_and_log_level() {
+        let verbose_error = Cli::try_parse_from(["cirup", "--quiet", "--verbose", "file-print", "a.json"])
+            .expect_err("expected quiet/verbose conflict");
+        assert!(verbose_error.to_string().contains("cannot be used with"));
+
+        let log_level_error = Cli::try_parse_from(["cirup", "--quiet", "--log-level", "info", "file-print", "a.json"])
+            .expect_err("expected quiet/log-level conflict");
+        assert!(log_level_error.to_string().contains("cannot be used with"));
+    }
+
+    #[test]
+    fn log_level_conflicts_with_verbose() {
+        let error = Cli::try_parse_from(["cirup", "--log-level", "trace", "-v", "file-print", "a.json"])
+            .expect_err("expected log-level/verbose conflict");
+
+        assert!(error.to_string().contains("cannot be used with"));
+    }
+
+    #[test]
+    fn removed_key_prefix_and_contains_flags_are_rejected() {
+        let prefix_error = Cli::try_parse_from(["cirup", "--key-prefix", "lbl", "file-print", "a.json"])
+            .expect_err("expected removed key-prefix flag to fail");
+        assert!(prefix_error.to_string().contains("unexpected argument '--key-prefix'"));
+
+        let pattern_error = Cli::try_parse_from(["cirup", "--key-pattern", "^lbl", "file-print", "a.json"])
+            .expect_err("expected removed key-pattern flag to fail");
+        assert!(
+            pattern_error
+                .to_string()
+                .contains("unexpected argument '--key-pattern'")
+        );
+
+        let contains_error = Cli::try_parse_from(["cirup", "--key-contains", "Hello", "file-print", "a.json"])
+            .expect_err("expected removed key-contains flag to fail");
+        assert!(
+            contains_error
+                .to_string()
+                .contains("unexpected argument '--key-contains'")
+        );
     }
 }

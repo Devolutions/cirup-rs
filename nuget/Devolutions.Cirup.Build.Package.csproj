@@ -8,7 +8,7 @@
     <NoPackageAnalysis>true</NoPackageAnalysis>
 
     <PackageId>Devolutions.Cirup.Build</PackageId>
-    <Version Condition="'$(Version)' == ''">0.5.0</Version>
+    <Version Condition="'$(Version)' == ''">0.6.0</Version>
     <Authors>Devolutions</Authors>
     <Description>Cross-platform cirup executable packaged for MSBuild pre-build RESX sorting.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>

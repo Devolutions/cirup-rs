@@ -3,6 +3,7 @@
 use std::io;
 
 use prettytable::{Cell, Row, Table};
+use regex::Regex;
 
 use crate::config::{QueryBackendKind, QueryConfig};
 use crate::file::{
@@ -27,8 +28,8 @@ pub struct QueryRunOptions {
     pub dry_run: bool,
     pub check: bool,
     pub summary: bool,
-    pub key_prefixes: Vec<String>,
-    pub key_contains: Vec<String>,
+    pub key_filters: Vec<String>,
+    pub value_filters: Vec<String>,
     pub limit: Option<usize>,
     pub operation_name: Option<String>,
     pub input_files: Vec<String>,
@@ -44,15 +45,6 @@ impl QueryRunOptions {
         self
     }
 
-    fn matches_name(&self, name: &str) -> bool {
-        let prefix_match =
-            self.key_prefixes.is_empty() || self.key_prefixes.iter().any(|prefix| name.starts_with(prefix));
-        let contains_match =
-            self.key_contains.is_empty() || self.key_contains.iter().any(|needle| name.contains(needle));
-
-        prefix_match && contains_match
-    }
-
     fn validate_for_output(&self, out_file: Option<&str>) -> Result<(), io::Error> {
         if self.count_only && out_file.is_some() {
             return Err(io::Error::other("--count-only cannot be combined with an output file"));
@@ -64,6 +56,339 @@ impl QueryRunOptions {
 
         Ok(())
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum TextPatternSegment {
+    Literal(String),
+    AnyOne,
+    AnyMany,
+}
+
+#[derive(Debug, Clone)]
+struct CompiledTextPattern {
+    regex: Regex,
+    glob_pattern: String,
+}
+
+#[derive(Debug, Clone, Default)]
+struct CompiledTextFilter {
+    patterns: Vec<CompiledTextPattern>,
+}
+
+impl CompiledTextFilter {
+    fn matches(&self, value: &str) -> bool {
+        self.patterns.iter().any(|pattern| pattern.regex.is_match(value))
+    }
+
+    fn sql_condition(&self, value_expr: &str) -> String {
+        let clauses = self
+            .patterns
+            .iter()
+            .map(|pattern| format!("{value_expr} GLOB {}", sql_quote_literal(&pattern.glob_pattern)))
+            .collect::<Vec<_>>();
+
+        if clauses.len() == 1 {
+            clauses[0].clone()
+        } else {
+            format!("({})", clauses.join(" OR "))
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.patterns.is_empty()
+    }
+}
+
+fn make_error(message: impl Into<String>) -> io::Error {
+    io::Error::other(message.into())
+}
+
+fn sql_quote_literal(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
+}
+
+fn escape_glob_char(ch: char) -> String {
+    match ch {
+        '*' => String::from("[*]"),
+        '?' => String::from("[?]"),
+        '[' => String::from("[[]"),
+        ']' => String::from("[]]"),
+        _ => ch.to_string(),
+    }
+}
+
+fn compress_glob_stars(glob_pattern: &str) -> String {
+    let mut output = String::new();
+    let mut previous_star = false;
+
+    for ch in glob_pattern.chars() {
+        if ch == '*' {
+            if previous_star {
+                continue;
+            }
+
+            previous_star = true;
+        } else {
+            previous_star = false;
+        }
+
+        output.push(ch);
+    }
+
+    output
+}
+
+fn is_escaped_char(chars: &[char], index: usize) -> bool {
+    let mut backslash_count = 0;
+    let mut cursor = index;
+
+    while cursor > 0 {
+        cursor -= 1;
+        if chars[cursor] == '\\' {
+            backslash_count += 1;
+        } else {
+            break;
+        }
+    }
+
+    backslash_count % 2 == 1
+}
+
+fn compile_text_pattern(flag_name: &str, pattern: &str) -> Result<CompiledTextPattern, io::Error> {
+    if pattern.is_empty() {
+        return Err(make_error(format!("{flag_name} cannot be empty")));
+    }
+
+    let chars = pattern.chars().collect::<Vec<_>>();
+    let anchored_start = chars.first() == Some(&'^');
+    let anchored_end = chars.last() == Some(&'$') && !is_escaped_char(&chars, chars.len() - 1);
+
+    let start_index = usize::from(anchored_start);
+    let end_index = if anchored_end { chars.len() - 1 } else { chars.len() };
+
+    if start_index > end_index {
+        return Err(make_error(format!(
+            "invalid {flag_name} '{}': missing pattern body",
+            pattern
+        )));
+    }
+
+    let mut segments = Vec::new();
+    let mut literal_buffer = String::new();
+    let mut index = start_index;
+
+    while index < end_index {
+        let ch = chars[index];
+
+        if ch == '\\' {
+            index += 1;
+            if index >= end_index {
+                return Err(make_error(format!(
+                    "invalid {flag_name} '{}': trailing escape sequence",
+                    pattern,
+                )));
+            }
+
+            literal_buffer.push(chars[index]);
+            index += 1;
+            continue;
+        }
+
+        if ch == '.' {
+            if !literal_buffer.is_empty() {
+                segments.push(TextPatternSegment::Literal(std::mem::take(&mut literal_buffer)));
+            }
+
+            if index + 1 < end_index && chars[index + 1] == '*' {
+                segments.push(TextPatternSegment::AnyMany);
+                index += 2;
+            } else {
+                segments.push(TextPatternSegment::AnyOne);
+                index += 1;
+            }
+            continue;
+        }
+
+        if matches!(ch, '*' | '+' | '?' | '|' | '(' | ')' | '[' | ']' | '{' | '}') {
+            return Err(make_error(format!(
+                "invalid {flag_name} '{}': unsupported syntax '{}'; supported syntax is literals, ^, $, . and .*",
+                pattern, ch,
+            )));
+        }
+
+        if ch == '^' {
+            return Err(make_error(format!(
+                "invalid {flag_name} '{}': '^' is only supported at the start",
+                pattern
+            )));
+        }
+
+        if ch == '$' {
+            return Err(make_error(format!(
+                "invalid {flag_name} '{}': '$' is only supported at the end",
+                pattern
+            )));
+        }
+
+        literal_buffer.push(ch);
+        index += 1;
+    }
+
+    if !literal_buffer.is_empty() {
+        segments.push(TextPatternSegment::Literal(literal_buffer));
+    }
+
+    let mut regex_pattern = String::new();
+    if anchored_start {
+        regex_pattern.push('^');
+    }
+
+    let mut glob_pattern = String::new();
+    if !anchored_start {
+        glob_pattern.push('*');
+    }
+
+    for segment in &segments {
+        match segment {
+            TextPatternSegment::Literal(value) => {
+                regex_pattern.push_str(&regex::escape(value));
+                for ch in value.chars() {
+                    glob_pattern.push_str(&escape_glob_char(ch));
+                }
+            }
+            TextPatternSegment::AnyOne => {
+                regex_pattern.push('.');
+                glob_pattern.push('?');
+            }
+            TextPatternSegment::AnyMany => {
+                regex_pattern.push_str(".*");
+                glob_pattern.push('*');
+            }
+        }
+    }
+
+    if anchored_end {
+        regex_pattern.push('$');
+    } else {
+        glob_pattern.push('*');
+    }
+
+    let regex = Regex::new(&regex_pattern).map_err(|error| {
+        make_error(format!(
+            "invalid {flag_name} '{}': failed to compile generated regex '{}': {}",
+            pattern, regex_pattern, error,
+        ))
+    })?;
+
+    Ok(CompiledTextPattern {
+        regex,
+        glob_pattern: compress_glob_stars(&glob_pattern),
+    })
+}
+
+fn compile_text_filter(flag_name: &str, patterns: &[String]) -> Result<Option<CompiledTextFilter>, io::Error> {
+    if patterns.is_empty() {
+        return Ok(None);
+    }
+
+    let patterns = patterns
+        .iter()
+        .map(|pattern| compile_text_pattern(flag_name, pattern))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(Some(CompiledTextFilter { patterns }))
+}
+
+#[derive(Debug, Clone, Default)]
+struct CompiledQueryFilters {
+    key_filter: Option<CompiledTextFilter>,
+    value_filter: Option<CompiledTextFilter>,
+}
+
+impl CompiledQueryFilters {
+    fn is_empty(&self) -> bool {
+        self.key_filter.is_none() && self.value_filter.is_none()
+    }
+}
+
+fn compile_query_filters(options: &QueryRunOptions) -> Result<CompiledQueryFilters, io::Error> {
+    Ok(CompiledQueryFilters {
+        key_filter: compile_text_filter("--key-filter", &options.key_filters)?,
+        value_filter: compile_text_filter("--value-filter", &options.value_filters)?,
+    })
+}
+
+fn canonical_sql(input: &str) -> String {
+    input
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_ascii_lowercase()
+}
+
+fn wrap_resource_query_with_filters(query: &str, filters: &CompiledQueryFilters) -> String {
+    if filters.is_empty() {
+        return query.to_owned();
+    }
+
+    let mut conditions = Vec::new();
+
+    if let Some(key_filter) = filters.key_filter.as_ref()
+        && !key_filter.is_empty()
+    {
+        conditions.push(key_filter.sql_condition("filtered.key"));
+    }
+
+    if let Some(value_filter) = filters.value_filter.as_ref()
+        && !value_filter.is_empty()
+    {
+        conditions.push(value_filter.sql_condition("filtered.val"));
+    }
+
+    if conditions.is_empty() {
+        return query.to_owned();
+    }
+
+    let mut wrapped = format!(
+        "WITH filtered(key, val) AS ({query}) SELECT key, val FROM filtered WHERE {}",
+        conditions.join(" AND ")
+    );
+
+    if canonical_sql(query) == canonical_sql(SORT_QUERY) {
+        wrapped.push_str(" ORDER BY key");
+    }
+
+    wrapped
+}
+
+fn wrap_triple_query_with_filters(query: &str, filters: &CompiledQueryFilters) -> String {
+    if filters.is_empty() {
+        return query.to_owned();
+    }
+
+    let mut conditions = Vec::new();
+
+    if let Some(key_filter) = filters.key_filter.as_ref()
+        && !key_filter.is_empty()
+    {
+        conditions.push(key_filter.sql_condition("filtered.key"));
+    }
+
+    if let Some(value_filter) = filters.value_filter.as_ref()
+        && !value_filter.is_empty()
+    {
+        conditions.push(value_filter.sql_condition("filtered.val"));
+    }
+
+    if conditions.is_empty() {
+        return query.to_owned();
+    }
+
+    format!(
+        "WITH filtered(key, val, base) AS ({query}) SELECT key, val, base FROM filtered WHERE {}",
+        conditions.join(" AND ")
+    )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -242,13 +567,22 @@ fn render_report(report: &QueryExecutionReport, output_format: QueryOutputFormat
     }
 }
 
-fn filter_resources(mut resources: Vec<Resource>, options: &QueryRunOptions) -> (QueryExecutionCounts, Vec<Resource>) {
+fn filter_resources(
+    mut resources: Vec<Resource>,
+    filters: &CompiledQueryFilters,
+    limit: Option<usize>,
+) -> (QueryExecutionCounts, Vec<Resource>) {
     let matched_count = resources.len();
-    resources.retain(|resource| options.matches_name(&resource.name));
+    if let Some(key_filter) = filters.key_filter.as_ref() {
+        resources.retain(|resource| key_filter.matches(&resource.name));
+    }
+    if let Some(value_filter) = filters.value_filter.as_ref() {
+        resources.retain(|resource| value_filter.matches(&resource.value));
+    }
     let filtered_count = resources.len();
     let mut truncated = false;
 
-    if let Some(limit) = options.limit {
+    if let Some(limit) = limit {
         truncated = filtered_count > limit;
         resources.truncate(limit);
     }
@@ -264,13 +598,22 @@ fn filter_resources(mut resources: Vec<Resource>, options: &QueryRunOptions) -> 
     )
 }
 
-fn filter_triples(mut triples: Vec<Triple>, options: &QueryRunOptions) -> (QueryExecutionCounts, Vec<Triple>) {
+fn filter_triples(
+    mut triples: Vec<Triple>,
+    filters: &CompiledQueryFilters,
+    limit: Option<usize>,
+) -> (QueryExecutionCounts, Vec<Triple>) {
     let matched_count = triples.len();
-    triples.retain(|triple| options.matches_name(&triple.name));
+    if let Some(key_filter) = filters.key_filter.as_ref() {
+        triples.retain(|triple| key_filter.matches(&triple.name));
+    }
+    if let Some(value_filter) = filters.value_filter.as_ref() {
+        triples.retain(|triple| value_filter.matches(&triple.value));
+    }
     let filtered_count = triples.len();
     let mut truncated = false;
 
-    if let Some(limit) = options.limit {
+    if let Some(limit) = limit {
         truncated = filtered_count > limit;
         triples.truncate(limit);
     }
@@ -549,12 +892,16 @@ impl CirupQuery {
     }
 
     pub fn run_with_options(&self, options: &QueryRunOptions) -> Vec<Resource> {
-        let (_, resources) = filter_resources(self.run(), options);
+        let filters = compile_query_filters(options).expect("invalid text filter");
+        let query = wrap_resource_query_with_filters(&self.query, &filters);
+        let (_, resources) = filter_resources(self.engine.query_resource(&query), &filters, options.limit);
         resources
     }
 
     pub fn run_triple_with_options(&self, options: &QueryRunOptions) -> Vec<Triple> {
-        let (_, triples) = filter_triples(self.run_triple(), options);
+        let filters = compile_query_filters(options).expect("invalid text filter");
+        let query = wrap_triple_query_with_filters(&self.query, &filters);
+        let (_, triples) = filter_triples(self.engine.query_triple(&query), &filters, options.limit);
         triples
     }
 
@@ -587,8 +934,10 @@ impl CirupQuery {
         options: &QueryRunOptions,
     ) -> Result<QueryExecutionReport, io::Error> {
         options.validate_for_output(out_file)?;
+        let filters = compile_query_filters(options)?;
+        let query = wrap_resource_query_with_filters(&self.query, &filters);
 
-        let (counts, resources) = filter_resources(self.run(), options);
+        let (counts, resources) = filter_resources(self.engine.query_resource(&query), &filters, options.limit);
         let would_write = out_file
             .map(|path| would_save_resource_file_with_encoding(path, &resources, touch, output_encoding))
             .unwrap_or(false);
@@ -640,8 +989,10 @@ impl CirupQuery {
         options: &QueryRunOptions,
     ) -> Result<QueryExecutionReport, io::Error> {
         options.validate_for_output(None)?;
+        let filters = compile_query_filters(options)?;
+        let query = wrap_triple_query_with_filters(&self.query, &filters);
 
-        let (counts, triples) = filter_triples(self.run_triple(), options);
+        let (counts, triples) = filter_triples(self.engine.query_triple(&query), &filters, options.limit);
         let report = QueryExecutionReport::from_options(options, "triple", counts, false, false);
 
         if options.count_only {
@@ -768,8 +1119,7 @@ fn test_query_turso_remote_env_gated() {
 fn test_query_run_options_filter_and_limit_resources() {
     let query = query_print_with_backend("test.json", QueryBackendKind::Rusqlite);
     let options = QueryRunOptions {
-        key_prefixes: vec![String::from("lbl")],
-        key_contains: vec![String::from("Yolo")],
+        key_filters: vec![String::from("^lbl.*Yolo$")],
         limit: Some(1),
         ..QueryRunOptions::default()
     };
@@ -864,4 +1214,74 @@ fn test_report_renders_as_json_summary() {
     assert!(output.contains("\"operation\":\"file-sort\""));
     assert!(output.contains("\"would_write\":true"));
     assert!(output.ends_with('\n'));
+}
+
+#[test]
+fn test_compile_text_pattern_supports_simple_regex_subset() {
+    let compiled = compile_text_pattern("--key-filter", "^lbl.*Yolo$").expect("expected valid pattern");
+
+    assert!(compiled.regex.is_match("lblMyYolo"));
+    assert!(!compiled.regex.is_match("prefix_lblMyYolo"));
+    assert_eq!(compiled.glob_pattern, "lbl*Yolo");
+}
+
+#[test]
+fn test_compile_text_pattern_rejects_unsupported_syntax() {
+    let error = compile_text_pattern("--key-filter", "foo|bar").expect_err("expected invalid pattern");
+
+    assert!(error.to_string().contains("unsupported syntax '|'"));
+}
+
+#[test]
+fn test_compile_text_filter_repeats_with_or_semantics() {
+    let options = QueryRunOptions {
+        key_filters: vec![String::from("^lbl"), String::from("World$")],
+        ..QueryRunOptions::default()
+    };
+    let text_filter = compile_text_filter("--key-filter", &options.key_filters)
+        .expect("expected valid filter")
+        .expect("expected compiled patterns");
+
+    assert!(text_filter.matches("lblHello"));
+    assert!(text_filter.matches("HelloWorld"));
+    assert!(!text_filter.matches("other"));
+}
+
+#[test]
+fn test_wrap_resource_query_with_key_filter_uses_glob_condition() {
+    let options = QueryRunOptions {
+        key_filters: vec![String::from("^lbl")],
+        ..QueryRunOptions::default()
+    };
+    let filters = compile_query_filters(&options).expect("expected compiled filters");
+    let wrapped = wrap_resource_query_with_filters(PRINT_QUERY, &filters);
+
+    assert!(wrapped.contains("filtered.key GLOB 'lbl*'"));
+    assert!(wrapped.starts_with("WITH filtered(key, val) AS (SELECT * FROM A)"));
+}
+
+#[test]
+fn test_wrap_resource_query_with_value_filter_uses_glob_condition() {
+    let options = QueryRunOptions {
+        value_filters: vec![String::from("^Hello")],
+        ..QueryRunOptions::default()
+    };
+    let filters = compile_query_filters(&options).expect("expected compiled filters");
+    let wrapped = wrap_resource_query_with_filters(PRINT_QUERY, &filters);
+
+    assert!(wrapped.contains("filtered.val GLOB 'Hello*'"));
+}
+
+#[test]
+fn test_value_filter_matches_resource_values() {
+    let query = query_print_with_backend("test.json", QueryBackendKind::Rusqlite);
+    let options = QueryRunOptions {
+        value_filters: vec![String::from("^English$")],
+        ..QueryRunOptions::default()
+    };
+
+    let resources = query.run_with_options(&options);
+
+    assert!(!resources.is_empty());
+    assert!(resources.iter().all(|resource| resource.value == "English"));
 }

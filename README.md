@@ -36,8 +36,8 @@ cirup --help
 - `--check`: imply `--dry-run` and exit with code `2` when the command would produce changes.
 - `--summary`: print a structured execution summary instead of full result rows. Combine it with `--dry-run` for inspect-only workflows.
 - `--count-only`: print only the number of matching results to stdout.
-- `--key-prefix <prefix>`: keep only results whose key starts with the prefix. Repeatable.
-- `--key-contains <text>`: keep only results whose key contains the text. Repeatable.
+- `--key-filter <pattern>`: keep only results whose key matches a simple regex-style pattern. Repeatable. Supported syntax: literals, `^`, `$`, `.`, and `.*`.
+- `--value-filter <pattern>`: keep only results whose value matches the same simple regex-style syntax. Repeatable.
 - `--limit <n>`: keep only the first `n` matching results.
 - `--quiet`: only print errors to stderr.
 - `--log-level <error|warn|info|debug|trace>`: set stderr verbosity explicitly.
@@ -49,6 +49,8 @@ cirup --help
 By default, cirup writes JSONL to stdout, logs at `warn` level, and avoids rewriting output files when content has not changed.
 
 `--summary` emits compact metadata such as counts, write intent, and whether output would be truncated. `--check` is intended for automation and returns exit code `2` when a command would produce changes.
+
+`--key-filter` and `--value-filter` are intentionally limited to a SQL-translatable subset. Unsupported syntax such as `|`, `()`, `[]`, `{m,n}`, `+`, and lookarounds is rejected instead of being interpreted as full regex.
 
 ## Common operations
 
@@ -164,7 +166,19 @@ cirup diff-with-base old.resx new.resx base.resx
 Limit stdout to a subset of keys:
 
 ```bash
-cirup --key-prefix lbl --limit 25 diff-with-base old.resx new.resx base.resx
+cirup --key-filter ^lbl --limit 25 diff-with-base old.resx new.resx base.resx
+```
+
+Match keys containing a simple wildcard sequence:
+
+```bash
+cirup --key-filter 'User.*Name' file-print input.resx
+```
+
+Filter by translated value content:
+
+```bash
+cirup --value-filter '^Hello' file-print input.resx
 ```
 
 Emit a structured summary for an in-place sort without modifying the file:

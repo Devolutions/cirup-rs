@@ -435,18 +435,20 @@ dependencies = [
 
 [[package]]
 name = "cirup_cli"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "cirup_core",
  "clap",
  "embed-resource",
  "env_logger",
  "log",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
 name = "cirup_core"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "dot_json",
  "lazy_static",
