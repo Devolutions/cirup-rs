@@ -1,5 +1,5 @@
-use regex::Regex;
-use std::fmt;
+#[cfg(test)]
+use std::time::Instant;
 
 use crate::Resource;
 use crate::file::FileFormat;
@@ -12,17 +12,11 @@ use std::error::Error;
  * https://docs.microsoft.com/en-us/dotnet/framework/resources/creating-resource-files-for-desktop-apps
  */
 
-lazy_static! {
-    static ref REGEX_RESTEXT: Regex =
-        Regex::new(r"^\s*(\w+)=(.*)$").unwrap_or_else(|e| panic!("invalid restext regex: {}", e));
-}
-
 pub(crate) struct RestextFileFormat {}
 
 /* https://lise-henry.github.io/articles/optimising_strings.html */
 
-pub(crate) fn escape_newlines(input: &str) -> String {
-    let mut output = String::new();
+fn push_escaped_newlines(output: &mut String, input: &str) {
     for c in input.chars() {
         match c {
             '\\' => output.push_str("\\\\"),
@@ -31,6 +25,23 @@ pub(crate) fn escape_newlines(input: &str) -> String {
             _ => output.push(c),
         }
     }
+}
+
+fn parse_restext_line(line: &str) -> Option<(&str, &str)> {
+    let (name_part, value) = line.split_once('=')?;
+    let name = name_part.trim_start_matches(char::is_whitespace);
+
+    if name.is_empty() || !name.chars().all(|ch| ch == '_' || ch.is_alphanumeric()) {
+        return None;
+    }
+
+    Some((name, value))
+}
+
+#[cfg(test)]
+pub(crate) fn escape_newlines(input: &str) -> String {
+    let mut output = String::with_capacity(input.len());
+    push_escaped_newlines(&mut output, input);
     output
 }
 
@@ -42,13 +53,7 @@ impl FileFormat for RestextFileFormat {
         let text = text.strip_prefix('\u{feff}').unwrap_or(text);
 
         for line in text.lines() {
-            if REGEX_RESTEXT.is_match(line) {
-                let captures = match REGEX_RESTEXT.captures(line) {
-                    Some(captures) => captures,
-                    None => continue,
-                };
-                let name = &captures[1];
-                let value = &captures[2];
+            if let Some((name, value)) = parse_restext_line(line) {
                 let resource = Resource::new(name, value);
                 resources.push(resource);
             }
@@ -63,13 +68,17 @@ impl FileFormat for RestextFileFormat {
     }
 
     fn write_to_str(&self, resources: &[Resource]) -> String {
-        let mut output = String::new();
+        let estimated_len = resources
+            .iter()
+            .map(|resource| resource.name.len() + resource.value.len() + 3)
+            .sum::<usize>();
+        let mut output = String::with_capacity(estimated_len);
 
         for resource in resources {
-            let escaped_value = escape_newlines(resource.value.as_str());
-            if fmt::write(&mut output, format_args!("{}={}\r\n", resource.name, escaped_value)).is_err() {
-                break;
-            }
+            output.push_str(&resource.name);
+            output.push('=');
+            push_escaped_newlines(&mut output, resource.value.as_str());
+            output.push_str("\r\n");
         }
 
         output
@@ -141,4 +150,39 @@ fn test_escape_newlines() {
     let text = "line1\\line2\r\nline3";
     let escaped = escape_newlines(text);
     assert_eq!(escaped, "line1\\\\line2\\r\\nline3");
+}
+
+#[test]
+#[ignore = "benchmark: run manually with --ignored --nocapture"]
+#[allow(clippy::print_stdout)]
+fn benchmark_restext_parse_and_write_large_input() {
+    let file_format = RestextFileFormat {};
+    let base = include_str!("../test/test.restext");
+    let repetitions = 20_000usize;
+    let mut text = String::with_capacity(base.len() * repetitions);
+
+    for _ in 0..repetitions {
+        text.push_str(base);
+    }
+
+    let started = Instant::now();
+    let resources = file_format
+        .parse_from_str(&text)
+        .unwrap_or_else(|e| panic!("restext parse benchmark failed: {}", e));
+    let parse_elapsed = started.elapsed();
+
+    let started = Instant::now();
+    let written = file_format.write_to_str(&resources);
+    let write_elapsed = started.elapsed();
+
+    assert_eq!(resources.len(), 3 * repetitions);
+    assert!(!written.is_empty());
+
+    println!(
+        "restext benchmark: lines={} bytes={} parse={:?} write={:?}",
+        resources.len(),
+        text.len(),
+        parse_elapsed,
+        write_elapsed
+    );
 }

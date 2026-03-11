@@ -4,6 +4,8 @@ use std::path::Path;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
+#[cfg(test)]
+use std::time::Instant;
 
 use sha2::{Digest, Sha256};
 
@@ -50,8 +52,14 @@ pub(crate) fn load_string_from_file(filename: &str) -> Result<String, Box<dyn Er
     if let Some(text) = vfile_get(filename) {
         return Ok(text);
     }
+
     let mut file = fs::File::open(filename)?;
-    let mut text = String::new();
+    let capacity = file
+        .metadata()
+        .ok()
+        .and_then(|metadata| usize::try_from(metadata.len()).ok())
+        .unwrap_or(0);
+    let mut text = String::with_capacity(capacity);
     file.read_to_string(&mut text)?;
     Ok(text)
 }
@@ -74,13 +82,14 @@ fn should_write_output(output_hash: [u8; 32], existing_bytes: Option<&[u8]>, tou
     output_hash != sha256_hash(existing_bytes)
 }
 
-fn encode_utf8(text: &str, output_encoding: OutputEncoding) -> Vec<u8> {
+fn encode_utf8_owned(text: String, output_encoding: OutputEncoding) -> Vec<u8> {
     match output_encoding {
-        OutputEncoding::Utf8NoBom => text.as_bytes().to_vec(),
+        OutputEncoding::Utf8NoBom => text.into_bytes(),
         OutputEncoding::Utf8Bom => {
+            let text = text.into_bytes();
             let mut output = Vec::with_capacity(UTF8_BOM.len() + text.len());
             output.extend_from_slice(&UTF8_BOM);
-            output.extend_from_slice(text.as_bytes());
+            output.extend_from_slice(&text);
             output
         }
     }
@@ -95,17 +104,17 @@ fn output_bytes_for_format(
         FormatType::Json => {
             let file_format = JsonFileFormat {};
             let text = file_format.write_to_str(resources);
-            encode_utf8(&text, output_encoding)
+            encode_utf8_owned(text, output_encoding)
         }
         FormatType::Resx => {
             let file_format = ResxFileFormat {};
             let text = file_format.write_to_str(resources);
-            encode_utf8(&text, output_encoding)
+            encode_utf8_owned(text, output_encoding)
         }
         FormatType::Restext => {
             let file_format = RestextFileFormat {};
             let text = file_format.write_to_str(resources);
-            encode_utf8(&text, output_encoding)
+            encode_utf8_owned(text, output_encoding)
         }
         FormatType::Unknown => Vec::new(),
     }
@@ -354,4 +363,32 @@ fn would_save_resource_file_reports_true_for_missing_output() {
     let would_write = would_save_resource_file_with_encoding(&filename, &resources, false, OutputEncoding::Utf8NoBom);
 
     assert!(would_write);
+}
+
+#[test]
+#[ignore = "benchmark: run manually with --ignored --nocapture"]
+#[allow(clippy::print_stdout)]
+fn benchmark_output_bytes_for_format_large_input() {
+    let resources = (0..50_000usize)
+        .map(|index| Resource::new(&format!("group{index}.key{}", index % 13), &format!("value{index}")))
+        .collect::<Vec<_>>();
+
+    let started = Instant::now();
+    let utf8_no_bom = output_bytes_for_format(FormatType::Json, &resources, OutputEncoding::Utf8NoBom);
+    let utf8_no_bom_elapsed = started.elapsed();
+
+    let started = Instant::now();
+    let utf8_bom = output_bytes_for_format(FormatType::Json, &resources, OutputEncoding::Utf8Bom);
+    let utf8_bom_elapsed = started.elapsed();
+
+    assert!(utf8_no_bom.len() < utf8_bom.len());
+
+    println!(
+        "output-bytes benchmark: resources={} utf8_no_bom_bytes={} utf8_bom_bytes={} no_bom={:?} bom={:?}",
+        resources.len(),
+        utf8_no_bom.len(),
+        utf8_bom.len(),
+        utf8_no_bom_elapsed,
+        utf8_bom_elapsed
+    );
 }

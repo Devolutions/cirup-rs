@@ -35,4 +35,9 @@ impl Triple {
             base: base.to_owned(),
         }
     }
+
+    #[cfg(feature = "rusqlite-c")]
+    pub(crate) fn from_owned(name: String, value: String, base: String) -> Self {
+        Triple { name, value, base }
+    }
 }

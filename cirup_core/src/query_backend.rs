@@ -11,7 +11,6 @@ use rusqlite::{Connection, Error as SqlError, Statement};
 
 #[cfg(feature = "turso-rust")]
 use std::cell::RefCell;
-#[cfg(feature = "turso-rust")]
 use std::collections::{HashMap, HashSet};
 
 #[cfg(feature = "turso-rust")]
@@ -54,33 +53,21 @@ fn load_resources(filename: &str) -> Vec<Resource> {
     }
 }
 
-#[cfg(feature = "turso-rust")]
 const TURSO_INSERT_CHUNK_SIZE: usize = 2000;
 
-#[cfg(feature = "turso-rust")]
 const QUERY_SELECT_A: &str = "select * from a";
-#[cfg(feature = "turso-rust")]
 const QUERY_SORT_A: &str = "select * from a order by a.key";
-#[cfg(feature = "turso-rust")]
 const QUERY_DIFF: &str = "select a.key, a.val, b.val from a left outer join b on a.key = b.key where (b.val is null)";
-#[cfg(feature = "turso-rust")]
 const QUERY_DIFF_WITH_BASE: &str = "select b.key, b.val, c.val from b left outer join a on b.key = a.key inner join c on b.key = c.key where (a.val is null)";
-#[cfg(feature = "turso-rust")]
 const QUERY_CHANGE: &str =
     "select a.key, a.val, b.val from a left outer join b on a.key = b.key where (b.val is null) or (a.val <> b.val)";
-#[cfg(feature = "turso-rust")]
 const QUERY_MERGE: &str = "select a.key, case when b.val is not null then b.val else a.val end from a left outer join b on a.key = b.key union select b.key, b.val from b left outer join a on a.key = b.key where (a.key is null)";
-#[cfg(feature = "turso-rust")]
 const QUERY_INTERSECT: &str = "select * from a intersect select * from b";
-#[cfg(feature = "turso-rust")]
 const QUERY_SUBTRACT: &str = "select * from a where a.key not in (select b.key from b)";
-#[cfg(feature = "turso-rust")]
 const QUERY_PULL_LEFT_JOIN: &str = "select a.key, a.val from a left outer join b on a.key = b.key";
-#[cfg(feature = "turso-rust")]
 const QUERY_PUSH_CHANGED_VALUES: &str =
     "select b.key, b.val from b inner join a on (a.key = b.key) and (a.val <> b.val)";
 
-#[cfg(feature = "turso-rust")]
 fn append_sql_quoted(out: &mut String, value: &str) {
     out.push('\'');
     for ch in value.chars() {
@@ -94,7 +81,6 @@ fn append_sql_quoted(out: &mut String, value: &str) {
     out.push('\'');
 }
 
-#[cfg(feature = "turso-rust")]
 fn build_multi_insert_sql(table: &str, resources: &[Resource], out: &mut String) {
     out.clear();
     out.push_str("INSERT INTO ");
@@ -116,18 +102,281 @@ fn build_multi_insert_sql(table: &str, resources: &[Resource], out: &mut String)
     out.push(';');
 }
 
-#[cfg(feature = "turso-rust")]
 fn build_key_index_sql(table: &str) -> String {
     format!("CREATE INDEX IF NOT EXISTS idx_{table}_key ON {table} (key);")
 }
 
-#[cfg(feature = "turso-rust")]
 fn canonical_sql(input: &str) -> String {
-    input
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .to_ascii_lowercase()
+    let mut output = String::with_capacity(input.len());
+    let mut saw_token = false;
+
+    for token in input.split_whitespace() {
+        if saw_token {
+            output.push(' ');
+        }
+
+        for ch in token.chars() {
+            output.push(ch.to_ascii_lowercase());
+        }
+
+        saw_token = true;
+    }
+
+    output
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FastResourceQueryKind {
+    SelectA,
+    SortA,
+    Diff,
+    Change,
+    Merge,
+    Intersect,
+    Subtract,
+    PullLeftJoin,
+    PushChangedValues,
+}
+
+fn classify_fast_resource_query(query: &str) -> Option<FastResourceQueryKind> {
+    match query {
+        QUERY_SELECT_A => Some(FastResourceQueryKind::SelectA),
+        QUERY_SORT_A => Some(FastResourceQueryKind::SortA),
+        QUERY_DIFF => Some(FastResourceQueryKind::Diff),
+        QUERY_CHANGE => Some(FastResourceQueryKind::Change),
+        QUERY_MERGE => Some(FastResourceQueryKind::Merge),
+        QUERY_INTERSECT => Some(FastResourceQueryKind::Intersect),
+        QUERY_SUBTRACT => Some(FastResourceQueryKind::Subtract),
+        QUERY_PULL_LEFT_JOIN => Some(FastResourceQueryKind::PullLeftJoin),
+        QUERY_PUSH_CHANGED_VALUES => Some(FastResourceQueryKind::PushChangedValues),
+        _ => {
+            let canonical = canonical_sql(query);
+            match canonical.as_str() {
+                QUERY_SELECT_A => Some(FastResourceQueryKind::SelectA),
+                QUERY_SORT_A => Some(FastResourceQueryKind::SortA),
+                QUERY_DIFF => Some(FastResourceQueryKind::Diff),
+                QUERY_CHANGE => Some(FastResourceQueryKind::Change),
+                QUERY_MERGE => Some(FastResourceQueryKind::Merge),
+                QUERY_INTERSECT => Some(FastResourceQueryKind::Intersect),
+                QUERY_SUBTRACT => Some(FastResourceQueryKind::Subtract),
+                QUERY_PULL_LEFT_JOIN => Some(FastResourceQueryKind::PullLeftJoin),
+                QUERY_PUSH_CHANGED_VALUES => Some(FastResourceQueryKind::PushChangedValues),
+                _ => None,
+            }
+        }
+    }
+}
+
+fn is_fast_triple_diff_with_base_query(query: &str) -> bool {
+    if query == QUERY_DIFF_WITH_BASE {
+        return true;
+    }
+
+    canonical_sql(query) == QUERY_DIFF_WITH_BASE
+}
+
+fn query_resource_fast_from_tables(tables: &HashMap<String, Vec<Resource>>, query: &str) -> Option<Vec<Resource>> {
+    let query_kind = classify_fast_resource_query(query)?;
+
+    let table_a = tables.get("A");
+    let table_b = tables.get("B");
+
+    if query_kind == FastResourceQueryKind::SelectA {
+        return table_a.cloned();
+    }
+
+    if query_kind == FastResourceQueryKind::SortA {
+        let mut resources = table_a?.clone();
+        resources.sort_by(|left, right| left.name.cmp(&right.name));
+        return Some(resources);
+    }
+
+    if query_kind == FastResourceQueryKind::Diff {
+        let a = table_a?;
+        let b = table_b?;
+        let b_keys: HashSet<&str> = b.iter().map(|resource| resource.name.as_str()).collect();
+
+        let resources = a
+            .iter()
+            .filter(|resource| !b_keys.contains(resource.name.as_str()))
+            .cloned()
+            .collect::<Vec<_>>();
+
+        return Some(resources);
+    }
+
+    if query_kind == FastResourceQueryKind::Change {
+        let a = table_a?;
+        let b = table_b?;
+        let b_values: HashMap<&str, &str> = b
+            .iter()
+            .map(|resource| (resource.name.as_str(), resource.value.as_str()))
+            .collect();
+
+        let resources = a
+            .iter()
+            .filter(|resource| {
+                let key = resource.name.as_str();
+                let value = resource.value.as_str();
+                match b_values.get(key) {
+                    None => true,
+                    Some(other) => *other != value,
+                }
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+
+        return Some(resources);
+    }
+
+    if query_kind == FastResourceQueryKind::Merge {
+        let a = table_a?;
+        let b = table_b?;
+
+        let a_values: HashMap<&str, &str> = a
+            .iter()
+            .map(|resource| (resource.name.as_str(), resource.value.as_str()))
+            .collect();
+        let b_values: HashMap<&str, &str> = b
+            .iter()
+            .map(|resource| (resource.name.as_str(), resource.value.as_str()))
+            .collect();
+
+        let mut resources = Vec::with_capacity(a.len() + b.len());
+        let mut dedupe: HashSet<(&str, &str)> = HashSet::with_capacity(a.len() + b.len());
+
+        for resource in a {
+            let key = resource.name.as_str();
+            let merged_value = b_values.get(key).copied().unwrap_or(resource.value.as_str());
+            if dedupe.insert((key, merged_value)) {
+                resources.push(Resource::new(key, merged_value));
+            }
+        }
+
+        for resource in b {
+            let key = resource.name.as_str();
+            let value = resource.value.as_str();
+            if !a_values.contains_key(key) && dedupe.insert((key, value)) {
+                resources.push(resource.clone());
+            }
+        }
+
+        return Some(resources);
+    }
+
+    if query_kind == FastResourceQueryKind::Intersect {
+        let a = table_a?;
+        let b = table_b?;
+        let b_pairs: HashSet<(&str, &str)> = b
+            .iter()
+            .map(|resource| (resource.name.as_str(), resource.value.as_str()))
+            .collect();
+
+        let mut resources = Vec::with_capacity(a.len().min(b.len()));
+        let mut dedupe: HashSet<(&str, &str)> = HashSet::with_capacity(a.len().min(b.len()));
+
+        for resource in a {
+            let pair = (resource.name.as_str(), resource.value.as_str());
+            if b_pairs.contains(&pair) && dedupe.insert(pair) {
+                resources.push(resource.clone());
+            }
+        }
+
+        return Some(resources);
+    }
+
+    if query_kind == FastResourceQueryKind::Subtract {
+        let a = table_a?;
+        let b = table_b?;
+        let b_keys: HashSet<&str> = b.iter().map(|resource| resource.name.as_str()).collect();
+
+        let resources = a
+            .iter()
+            .filter(|resource| !b_keys.contains(resource.name.as_str()))
+            .cloned()
+            .collect::<Vec<_>>();
+
+        return Some(resources);
+    }
+
+    if query_kind == FastResourceQueryKind::PullLeftJoin {
+        let a = table_a?;
+        let b = table_b?;
+
+        let mut b_match_count: HashMap<&str, usize> = HashMap::new();
+        for resource in b {
+            *b_match_count.entry(resource.name.as_str()).or_insert(0) += 1;
+        }
+
+        let mut resources = Vec::new();
+        for resource in a {
+            let repeat = b_match_count.get(resource.name.as_str()).copied().unwrap_or(1);
+            for _ in 0..repeat {
+                resources.push(resource.clone());
+            }
+        }
+
+        return Some(resources);
+    }
+
+    if query_kind == FastResourceQueryKind::PushChangedValues {
+        let a = table_a?;
+        let b = table_b?;
+
+        let mut a_values: HashMap<&str, Vec<&str>> = HashMap::new();
+        for resource in a {
+            a_values
+                .entry(resource.name.as_str())
+                .or_default()
+                .push(resource.value.as_str());
+        }
+
+        let mut resources = Vec::new();
+        for resource in b {
+            let key = resource.name.as_str();
+            let Some(left_values) = a_values.get(key) else {
+                continue;
+            };
+
+            for left_value in left_values {
+                if *left_value != resource.value.as_str() {
+                    resources.push(resource.clone());
+                }
+            }
+        }
+
+        return Some(resources);
+    }
+
+    None
+}
+
+fn query_triple_fast_from_tables(tables: &HashMap<String, Vec<Resource>>, query: &str) -> Option<Vec<Triple>> {
+    if !is_fast_triple_diff_with_base_query(query) {
+        return None;
+    }
+
+    let a = tables.get("A")?;
+    let b = tables.get("B")?;
+    let c = tables.get("C")?;
+
+    let a_keys: HashSet<&str> = a.iter().map(|resource| resource.name.as_str()).collect();
+    let c_values: HashMap<&str, &str> = c
+        .iter()
+        .map(|resource| (resource.name.as_str(), resource.value.as_str()))
+        .collect();
+
+    let mut triples = Vec::new();
+    for resource in b {
+        let key = resource.name.as_str();
+        if !a_keys.contains(key)
+            && let Some(base) = c_values.get(key)
+        {
+            triples.push(Triple::new(key, resource.value.as_str(), base));
+        }
+    }
+
+    Some(triples)
 }
 
 #[cfg(feature = "turso-rust")]
@@ -164,9 +413,9 @@ fn query_resource_from_statement(statement: &mut Statement<'_>) -> Vec<Resource>
 
     while let Some(v) = response.next() {
         if let Ok(res) = v {
-            let name = &res.get::<usize, String>(0);
-            let value = &res.get::<usize, String>(1);
-            let resource = Resource::new(name, value);
+            let name: String = res.get(0);
+            let value: String = res.get(1);
+            let resource = Resource::from_owned(name, value);
             resources.push(resource);
         }
     }
@@ -187,10 +436,10 @@ fn query_triple_from_statement(statement: &mut Statement<'_>) -> Vec<Triple> {
 
     while let Some(v) = response.next() {
         if let Ok(res) = v {
-            let name = &res.get::<usize, String>(0);
-            let value = &res.get::<usize, String>(1);
-            let base = &res.get::<usize, String>(2);
-            let resource = Triple::new(name, value, base);
+            let name: String = res.get(0);
+            let value: String = res.get(1);
+            let base: String = res.get(2);
+            let resource = Triple::from_owned(name, value, base);
             resources.push(resource);
         }
     }
@@ -201,16 +450,20 @@ fn query_triple_from_statement(statement: &mut Statement<'_>) -> Vec<Triple> {
 #[cfg(feature = "rusqlite-c")]
 pub(crate) struct RusqliteBackend {
     db: Connection,
+    tables: HashMap<String, Vec<Resource>>,
 }
 
 #[cfg(feature = "rusqlite-c")]
 impl RusqliteBackend {
     pub(crate) fn new() -> Self {
         let db = Connection::open_in_memory().expect("failed to open in-memory database");
-        Self { db }
+        Self {
+            db,
+            tables: HashMap::new(),
+        }
     }
 
-    fn register_table_with_resources(&mut self, table: &str, resources: &[Resource]) {
+    fn register_table_with_resources(&mut self, table: &str, resources: Vec<Resource>) {
         if !valid_table_name(table) {
             error!("invalid table name {}", table);
             return;
@@ -242,13 +495,15 @@ impl RusqliteBackend {
                 }
             };
 
-            for resource in resources {
+            for resource in &resources {
                 if let Err(e) = statement.execute(&[&resource.name, &resource.value]) {
                     error!("failed to insert resource into {}: {}", table, e);
                     return;
                 }
             }
         }
+
+        self.tables.insert(table.to_owned(), resources);
 
         if let Err(e) = tx.commit() {
             error!("failed to commit transaction for {}: {}", table, e);
@@ -266,15 +521,19 @@ impl QueryBackend for RusqliteBackend {
     fn register_table_from_str(&mut self, table: &str, filename: &str, data: &str) {
         vfile_set(filename, data);
         let resources = load_resources(filename);
-        self.register_table_with_resources(table, &resources);
+        self.register_table_with_resources(table, resources);
     }
 
     fn register_table_from_file(&mut self, table: &str, filename: &str) {
         let resources = load_resources(filename);
-        self.register_table_with_resources(table, &resources);
+        self.register_table_with_resources(table, resources);
     }
 
     fn query_resource(&self, query: &str) -> Vec<Resource> {
+        if let Some(resources) = query_resource_fast_from_tables(&self.tables, query) {
+            return resources;
+        }
+
         let mut statement = match self.prepare_statement(query) {
             Ok(statement) => statement,
             Err(e) => {
@@ -287,6 +546,10 @@ impl QueryBackend for RusqliteBackend {
     }
 
     fn query_triple(&self, query: &str) -> Vec<Triple> {
+        if let Some(triples) = query_triple_fast_from_tables(&self.tables, query) {
+            return triples;
+        }
+
         let mut statement = match self.prepare_statement(query) {
             Ok(statement) => statement,
             Err(e) => {
@@ -401,208 +664,11 @@ impl TursoLocalBackend {
     }
 
     fn query_resource_fast(&self, query: &str) -> Option<Vec<Resource>> {
-        let query = canonical_sql(query);
-
-        let table_a = self.tables.get("A");
-        let table_b = self.tables.get("B");
-
-        if query == QUERY_SELECT_A {
-            return table_a.cloned();
-        }
-
-        if query == QUERY_SORT_A {
-            let mut resources = table_a?.clone();
-            resources.sort_by(|left, right| left.name.cmp(&right.name));
-            return Some(resources);
-        }
-
-        if query == QUERY_DIFF {
-            let a = table_a?;
-            let b = table_b?;
-            let b_keys: HashSet<&str> = b.iter().map(|resource| resource.name.as_str()).collect();
-
-            let resources = a
-                .iter()
-                .filter(|resource| !b_keys.contains(resource.name.as_str()))
-                .cloned()
-                .collect::<Vec<_>>();
-
-            return Some(resources);
-        }
-
-        if query == QUERY_CHANGE {
-            let a = table_a?;
-            let b = table_b?;
-            let b_values: HashMap<&str, &str> = b
-                .iter()
-                .map(|resource| (resource.name.as_str(), resource.value.as_str()))
-                .collect();
-
-            let resources = a
-                .iter()
-                .filter(|resource| {
-                    let key = resource.name.as_str();
-                    let value = resource.value.as_str();
-                    match b_values.get(key) {
-                        None => true,
-                        Some(other) => *other != value,
-                    }
-                })
-                .cloned()
-                .collect::<Vec<_>>();
-
-            return Some(resources);
-        }
-
-        if query == QUERY_MERGE {
-            let a = table_a?;
-            let b = table_b?;
-
-            let a_values: HashMap<&str, &str> = a
-                .iter()
-                .map(|resource| (resource.name.as_str(), resource.value.as_str()))
-                .collect();
-            let b_values: HashMap<&str, &str> = b
-                .iter()
-                .map(|resource| (resource.name.as_str(), resource.value.as_str()))
-                .collect();
-
-            let mut resources = Vec::with_capacity(a.len() + b.len());
-            let mut dedupe: HashSet<(String, String)> = HashSet::with_capacity(a.len() + b.len());
-
-            for resource in a {
-                let key = resource.name.as_str();
-                let merged_value = b_values.get(key).copied().unwrap_or(resource.value.as_str());
-                let merged = Resource::new(key, merged_value);
-                if dedupe.insert((merged.name.clone(), merged.value.clone())) {
-                    resources.push(merged);
-                }
-            }
-
-            for resource in b {
-                let key = resource.name.as_str();
-                if !a_values.contains_key(key) && dedupe.insert((resource.name.clone(), resource.value.clone())) {
-                    resources.push(resource.clone());
-                }
-            }
-
-            return Some(resources);
-        }
-
-        if query == QUERY_INTERSECT {
-            let a = table_a?;
-            let b = table_b?;
-            let b_pairs: HashSet<(&str, &str)> = b
-                .iter()
-                .map(|resource| (resource.name.as_str(), resource.value.as_str()))
-                .collect();
-
-            let mut resources = Vec::new();
-            let mut dedupe: HashSet<(String, String)> = HashSet::new();
-
-            for resource in a {
-                let pair = (resource.name.as_str(), resource.value.as_str());
-                if b_pairs.contains(&pair) && dedupe.insert((resource.name.clone(), resource.value.clone())) {
-                    resources.push(resource.clone());
-                }
-            }
-
-            return Some(resources);
-        }
-
-        if query == QUERY_SUBTRACT {
-            let a = table_a?;
-            let b = table_b?;
-            let b_keys: HashSet<&str> = b.iter().map(|resource| resource.name.as_str()).collect();
-
-            let resources = a
-                .iter()
-                .filter(|resource| !b_keys.contains(resource.name.as_str()))
-                .cloned()
-                .collect::<Vec<_>>();
-
-            return Some(resources);
-        }
-
-        if query == QUERY_PULL_LEFT_JOIN {
-            let a = table_a?;
-            let b = table_b?;
-
-            let mut b_match_count: HashMap<&str, usize> = HashMap::new();
-            for resource in b {
-                *b_match_count.entry(resource.name.as_str()).or_insert(0) += 1;
-            }
-
-            let mut resources = Vec::new();
-            for resource in a {
-                let repeat = b_match_count.get(resource.name.as_str()).copied().unwrap_or(1);
-                for _ in 0..repeat {
-                    resources.push(resource.clone());
-                }
-            }
-
-            return Some(resources);
-        }
-
-        if query == QUERY_PUSH_CHANGED_VALUES {
-            let a = table_a?;
-            let b = table_b?;
-
-            let mut a_values: HashMap<&str, Vec<&str>> = HashMap::new();
-            for resource in a {
-                a_values
-                    .entry(resource.name.as_str())
-                    .or_default()
-                    .push(resource.value.as_str());
-            }
-
-            let mut resources = Vec::new();
-            for resource in b {
-                let key = resource.name.as_str();
-                let Some(left_values) = a_values.get(key) else {
-                    continue;
-                };
-
-                for left_value in left_values {
-                    if *left_value != resource.value.as_str() {
-                        resources.push(resource.clone());
-                    }
-                }
-            }
-
-            return Some(resources);
-        }
-
-        None
+        query_resource_fast_from_tables(&self.tables, query)
     }
 
     fn query_triple_fast(&self, query: &str) -> Option<Vec<Triple>> {
-        let query = canonical_sql(query);
-        if query != QUERY_DIFF_WITH_BASE {
-            return None;
-        }
-
-        let a = self.tables.get("A")?;
-        let b = self.tables.get("B")?;
-        let c = self.tables.get("C")?;
-
-        let a_keys: HashSet<&str> = a.iter().map(|resource| resource.name.as_str()).collect();
-        let c_values: HashMap<&str, &str> = c
-            .iter()
-            .map(|resource| (resource.name.as_str(), resource.value.as_str()))
-            .collect();
-
-        let mut triples = Vec::new();
-        for resource in b {
-            let key = resource.name.as_str();
-            if !a_keys.contains(key)
-                && let Some(base) = c_values.get(key)
-            {
-                triples.push(Triple::new(key, resource.value.as_str(), base));
-            }
-        }
-
-        Some(triples)
+        query_triple_fast_from_tables(&self.tables, query)
     }
 }
 
@@ -843,7 +909,7 @@ pub(crate) fn build_backend(query_config: &QueryConfig) -> Box<dyn QueryBackend>
         QueryBackendKind::Rusqlite => {
             #[cfg(feature = "rusqlite-c")]
             {
-                return Box::new(RusqliteBackend::new());
+                Box::new(RusqliteBackend::new())
             }
 
             #[cfg(not(feature = "rusqlite-c"))]
