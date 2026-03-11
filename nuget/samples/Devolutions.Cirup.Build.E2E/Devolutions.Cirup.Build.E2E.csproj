@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
-    <CirupBuildVersion Condition="'$(CirupBuildVersion)' == ''">0.5.0</CirupBuildVersion>
+    <CirupBuildVersion Condition="'$(CirupBuildVersion)' == ''">0.6.0</CirupBuildVersion>
   </PropertyGroup>
 
   <ItemGroup>

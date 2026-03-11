@@ -7,7 +7,7 @@
     <ToolCommandName>cirup</ToolCommandName>
     <PackageId>Devolutions.Cirup.Tool</PackageId>
 
-      <Version Condition="'$(Version)' == ''">0.5.0</Version>
+      <Version Condition="'$(Version)' == ''">0.6.0</Version>
     <Authors>Devolutions</Authors>
     <Description>RID-specific dotnet tool wrapper around prebuilt cirup native executables.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>

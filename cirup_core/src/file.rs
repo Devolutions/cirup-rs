@@ -111,6 +111,21 @@ fn output_bytes_for_format(
     }
 }
 
+fn output_bytes_for_file(filename: &str, resources: &[Resource], output_encoding: OutputEncoding) -> Option<Vec<u8>> {
+    let path = Path::new(filename);
+    let extension = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .unwrap_or_default();
+    let format_type = get_format_type_from_extension(extension);
+
+    if format_type == FormatType::Unknown {
+        return None;
+    }
+
+    Some(output_bytes_for_format(format_type, resources, output_encoding))
+}
+
 #[cfg(test)]
 pub(crate) fn load_resource_str(text: &str, extension: &str) -> Result<Vec<Resource>, Box<dyn Error>> {
     match extension {
@@ -163,24 +178,30 @@ pub(crate) fn save_resource_file_with_encoding(
     touch: bool,
     output_encoding: OutputEncoding,
 ) {
-    let path = Path::new(filename);
-    let extension = path
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .unwrap_or_default();
-    let format_type = get_format_type_from_extension(extension);
-
-    if format_type == FormatType::Unknown {
+    let Some(output_bytes) = output_bytes_for_file(filename, resources, output_encoding) else {
         return;
-    }
-
-    let output_bytes = output_bytes_for_format(format_type, resources, output_encoding);
+    };
     let output_hash = sha256_hash(&output_bytes);
     let existing_bytes = fs::read(filename).ok();
 
     if should_write_output(output_hash, existing_bytes.as_deref(), touch) {
         fs::write(filename, output_bytes).expect("failed to write output file");
     }
+}
+
+pub(crate) fn would_save_resource_file_with_encoding(
+    filename: &str,
+    resources: &[Resource],
+    touch: bool,
+    output_encoding: OutputEncoding,
+) -> bool {
+    let Some(output_bytes) = output_bytes_for_file(filename, resources, output_encoding) else {
+        return false;
+    };
+
+    let output_hash = sha256_hash(&output_bytes);
+    let existing_bytes = fs::read(filename).ok();
+    should_write_output(output_hash, existing_bytes.as_deref(), touch)
 }
 
 lazy_static! {
@@ -310,4 +331,27 @@ fn save_resource_file_touches_unchanged_file_when_touch_is_true() {
 
     let _ = fs::remove_file(&filename);
     assert!(second_modified > first_modified);
+}
+
+#[test]
+fn would_save_resource_file_reports_false_for_unchanged_output() {
+    let filename = temp_output_file_path("json");
+    let resources = vec![Resource::new("hello", "world")];
+
+    save_resource_file(&filename, &resources, false);
+
+    let would_write = would_save_resource_file_with_encoding(&filename, &resources, false, OutputEncoding::Utf8NoBom);
+
+    let _ = fs::remove_file(&filename);
+    assert!(!would_write);
+}
+
+#[test]
+fn would_save_resource_file_reports_true_for_missing_output() {
+    let filename = temp_output_file_path("json");
+    let resources = vec![Resource::new("hello", "world")];
+
+    let would_write = would_save_resource_file_with_encoding(&filename, &resources, false, OutputEncoding::Utf8NoBom);
+
+    assert!(would_write);
 }
