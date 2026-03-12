@@ -1,10 +1,10 @@
-extern crate dot_json;
 extern crate serde;
 extern crate serde_json;
 
-use dot_json::value_to_dot;
 use serde::Serialize;
 use serde_json::{Map, Value};
+#[cfg(test)]
+use std::time::Instant;
 
 use crate::Resource;
 use crate::file::FileFormat;
@@ -14,20 +14,34 @@ use std::error::Error;
 pub(crate) struct JsonFileFormat {}
 
 fn json_dot_insert(root_map: &mut Map<String, Value>, name: &str, value: &str) {
-    if let Some(dot_index) = name.find('.') {
-        let root_path = &name[0..dot_index];
-        let child_path = &name[dot_index + 1..name.len()];
+    if let Some((root_path, child_path)) = name.split_once('.') {
+        let child_value = root_map
+            .entry(root_path.to_owned())
+            .or_insert_with(|| Value::Object(Map::new()));
 
-        if !root_map.contains_key(root_path) {
-            let child_map: Map<String, Value> = Map::new();
-            root_map.insert(root_path.to_owned(), Value::Object(child_map));
-        }
-
-        if let Some(Value::Object(child_map)) = root_map.get_mut(root_path) {
+        if let Value::Object(child_map) = child_value {
             json_dot_insert(child_map, child_path, value);
         }
     } else {
         root_map.insert(name.to_owned(), Value::String(value.to_owned()));
+    }
+}
+
+fn flatten_json_value(value: &Value, path: &mut String, resources: &mut Vec<Resource>) {
+    match value {
+        Value::Object(object) => {
+            for (key, child_value) in object {
+                let prefix_len = path.len();
+                if prefix_len > 0 {
+                    path.push('.');
+                }
+                path.push_str(key);
+                flatten_json_value(child_value, path, resources);
+                path.truncate(prefix_len);
+            }
+        }
+        Value::String(text) => resources.push(Resource::new(path, text)),
+        _ => {}
     }
 }
 
@@ -47,17 +61,18 @@ impl FileFormat for JsonFileFormat {
     fn parse_from_str(&self, text: &str) -> Result<Vec<Resource>, Box<dyn Error>> {
         let mut resources: Vec<Resource> = Vec::new();
         let root_value: Value = serde_json::from_str(text)?;
-        let root_value_dot = value_to_dot(&root_value);
-        let root_object_dot = match root_value_dot.as_object() {
+        let root_object = match root_value.as_object() {
             Some(object) => object,
-            None => Err("json dot value is not an object")?,
+            None => Err("json value is not an object")?,
         };
-        for (key, value) in root_object_dot.iter() {
-            if let Some(value) = value.as_str() {
-                let resource = Resource::new(key.as_str(), value);
-                resources.push(resource);
-            }
+
+        let mut path = String::new();
+        for (key, value) in root_object {
+            path.clear();
+            path.push_str(key);
+            flatten_json_value(value, &mut path, &mut resources);
         }
+
         Ok(resources)
     }
 
@@ -160,4 +175,43 @@ fn test_json_write() {
     //println!("{}", actual_text);
     //println!("{}", expected_text);
     assert_eq!(actual_text, expected_text);
+}
+
+#[test]
+#[ignore = "benchmark: run manually with --ignored --nocapture"]
+#[allow(clippy::print_stdout)]
+fn benchmark_json_parse_and_write_large_input() {
+    let file_format = JsonFileFormat {};
+    let repetitions = 5_000usize;
+    let mut resources = Vec::with_capacity(repetitions * 6);
+
+    for index in 0..repetitions {
+        let prefix = format!("group{index}");
+        resources.push(Resource::new(&format!("{prefix}.lblBoat"), "I'm on a boat."));
+        resources.push(Resource::new(&format!("{prefix}.lblYolo"), "You only live once"));
+        resources.push(Resource::new(&format!("{prefix}.lblDogs"), "Who let the dogs out?"));
+        resources.push(Resource::new(&format!("{prefix}.language.en"), "English"));
+        resources.push(Resource::new(&format!("{prefix}.language.fr"), "French"));
+        resources.push(Resource::new(&format!("{prefix}.very.deep.object"), "value"));
+    }
+
+    let started = Instant::now();
+    let written = file_format.write_to_str(&resources);
+    let write_elapsed = started.elapsed();
+
+    let started = Instant::now();
+    let reparsed = file_format
+        .parse_from_str(&written)
+        .unwrap_or_else(|e| panic!("json benchmark parse failed: {}", e));
+    let parse_elapsed = started.elapsed();
+
+    assert_eq!(reparsed.len(), resources.len());
+
+    println!(
+        "json benchmark: resources={} bytes={} write={:?} parse={:?}",
+        resources.len(),
+        written.len(),
+        write_elapsed,
+        parse_elapsed
+    );
 }

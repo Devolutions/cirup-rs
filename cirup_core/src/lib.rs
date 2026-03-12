@@ -1,4 +1,3 @@
-extern crate regex;
 extern crate treexml;
 extern crate uuid;
 
@@ -9,9 +8,6 @@ extern crate serde;
 extern crate serde_json;
 #[macro_use]
 extern crate log;
-
-#[macro_use]
-extern crate prettytable;
 
 #[macro_use]
 extern crate lazy_static;

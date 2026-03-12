@@ -33,4 +33,9 @@ impl Resource {
             value: value.to_owned(),
         }
     }
+
+    #[cfg(feature = "rusqlite-c")]
+    pub(crate) fn from_owned(name: String, value: String) -> Self {
+        Resource { name, value }
+    }
 }

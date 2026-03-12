@@ -1,5 +1,5 @@
 extern crate treexml;
-use treexml::{Document, Element};
+use treexml::Document;
 
 use crate::Resource;
 use crate::file::FileFormat;
@@ -16,12 +16,28 @@ fn without_bom(text: &str) -> &[u8] {
     text.as_bytes()
 }
 
-fn escape_xml_text(value: &str) -> String {
-    value.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+fn push_escaped_xml_text(output: &mut String, value: &str) {
+    for ch in value.chars() {
+        match ch {
+            '&' => output.push_str("&amp;"),
+            '<' => output.push_str("&lt;"),
+            '>' => output.push_str("&gt;"),
+            _ => output.push(ch),
+        }
+    }
 }
 
-fn escape_xml_attr(value: &str) -> String {
-    escape_xml_text(value).replace('"', "&quot;").replace('\'', "&apos;")
+fn push_escaped_xml_attr(output: &mut String, value: &str) {
+    for ch in value.chars() {
+        match ch {
+            '&' => output.push_str("&amp;"),
+            '<' => output.push_str("&lt;"),
+            '>' => output.push_str("&gt;"),
+            '"' => output.push_str("&quot;"),
+            '\'' => output.push_str("&apos;"),
+            _ => output.push(ch),
+        }
+    }
 }
 
 impl FileFormat for ResxFileFormat {
@@ -35,14 +51,12 @@ impl FileFormat for ResxFileFormat {
             let doc = Document::parse(bytes).map_err(|e| format!("resx parse error: {:?}", e))?;
             let root = doc.root.ok_or("resx root not found")?;
 
-            let children: Vec<&Element> = root.filter_children(|t| t.name == "data").collect();
-
-            for data in children {
+            for data in root.filter_children(|t| t.name == "data") {
                 if let Some(data_name) = data.attributes.get("name")
                     && let Some(value) = data.find_child(|tag| tag.name == "value")
                 {
-                    let data_value = value.text.clone().unwrap_or_default();
-                    let resource = Resource::new(data_name, data_value.as_ref());
+                    let data_value = value.text.as_deref().unwrap_or_default();
+                    let resource = Resource::new(data_name, data_value);
                     resources.push(resource);
                 }
             }
@@ -57,13 +71,18 @@ impl FileFormat for ResxFileFormat {
     }
 
     fn write_to_str(&self, resources: &[Resource]) -> String {
-        let mut output = String::from("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<root>");
+        let estimated_body_len = resources
+            .iter()
+            .map(|resource| resource.name.len() + resource.value.len() + 64)
+            .sum::<usize>();
+        let mut output = String::with_capacity(48 + estimated_body_len);
+        output.push_str("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<root>");
 
         for resource in resources {
             output.push_str("\n  <data name=\"");
-            output.push_str(&escape_xml_attr(resource.name.as_str()));
+            push_escaped_xml_attr(&mut output, resource.name.as_str());
             output.push_str("\" xml:space=\"preserve\">\n    <value>");
-            output.push_str(&escape_xml_text(resource.value.as_str()));
+            push_escaped_xml_text(&mut output, resource.value.as_str());
             output.push_str("</value>\n  </data>");
         }
 
